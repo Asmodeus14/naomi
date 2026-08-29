@@ -37,6 +37,7 @@ fun HomeScreen(
     onNavigateToTopics: () -> Unit,
     onNavigateToAmbient: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onNavigateToAsk: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToNoteDetail: (Long) -> Unit
 ) {
@@ -165,6 +166,19 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.clickable { showTextInput = true }
+                        )
+
+                        // The other half of the promise. Speaking puts things in;
+                        // this is how they come back out, and it needs to be
+                        // visible from the first screen or nobody finds it.
+                        Spacer(Modifier.height(NaomiSpacing.lg))
+                        Text(
+                            text = "Ask what you've already told me →",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable(onClick = onNavigateToAsk)
+                                .padding(vertical = NaomiSpacing.xs)
                         )
                     }
                     Spacer(Modifier.height(NaomiSpacing.md + NaomiSpacing.xs))

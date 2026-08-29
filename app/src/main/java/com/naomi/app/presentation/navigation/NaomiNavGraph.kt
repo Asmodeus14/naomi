@@ -19,6 +19,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.naomi.app.presentation.ambient.AmbientScreen
 import com.naomi.app.presentation.ambient.AmbientViewModel
+import com.naomi.app.presentation.ask.AskScreen
+import com.naomi.app.presentation.ask.AskViewModel
 import com.naomi.app.presentation.hierarchy.TopicDetailScreen
 import com.naomi.app.presentation.hierarchy.TopicHierarchyScreen
 import com.naomi.app.presentation.hierarchy.TopicHierarchyViewModel
@@ -87,6 +89,7 @@ fun NaomiNavGraph(
                 onNavigateToTopics = { navController.navigate(Screen.TopicHierarchy.route) },
                 onNavigateToAmbient = { navController.navigate(Screen.Ambient.route) },
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
+                onNavigateToAsk = { navController.navigate(Screen.Ask.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToNoteDetail = { noteId -> navController.navigate(Screen.NoteDetail.createRoute(noteId)) }
             )
@@ -155,6 +158,15 @@ fun NaomiNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToNoteDetail = { noteId -> navController.navigate(Screen.NoteDetail.createRoute(noteId)) },
                 onNavigateToTopic = { topicId -> navController.navigate(Screen.TopicDetail.createRoute(topicId)) }
+            )
+        }
+
+        composable(Screen.Ask.route) {
+            val askViewModel: AskViewModel = viewModel()
+            AskScreen(
+                viewModel = askViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToNoteDetail = { noteId -> navController.navigate(Screen.NoteDetail.createRoute(noteId)) }
             )
         }
 

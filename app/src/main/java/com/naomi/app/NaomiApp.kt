@@ -47,6 +47,8 @@ class NaomiApp : Application() {
         private set
     lateinit var searchMemoriesUseCase: SearchMemoriesUseCase
         private set
+    lateinit var askNaomiUseCase: AskNaomiUseCase
+        private set
     lateinit var exportMarkdownUseCase: ExportMarkdownUseCase
         private set
     lateinit var cleanStorageUseCase: CleanStorageUseCase
@@ -79,6 +81,7 @@ class NaomiApp : Application() {
         processThoughtUseCase = ProcessThoughtUseCase(knowledgeRepository, intelligenceProviders)
         processAmbientChunkUseCase = ProcessAmbientChunkUseCase(knowledgeRepository)
         searchMemoriesUseCase = SearchMemoriesUseCase(knowledgeRepository)
+        askNaomiUseCase = AskNaomiUseCase(knowledgeRepository)
         exportMarkdownUseCase = ExportMarkdownUseCase(knowledgeRepository)
         cleanStorageUseCase = CleanStorageUseCase(recordingRepository)
 

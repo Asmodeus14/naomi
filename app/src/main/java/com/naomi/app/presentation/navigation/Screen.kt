@@ -13,5 +13,6 @@ sealed class Screen(val route: String) {
     }
     object Ambient : Screen("ambient")
     object Search : Screen("search")
+    object Ask : Screen("ask")
     object Settings : Screen("settings")
 }
