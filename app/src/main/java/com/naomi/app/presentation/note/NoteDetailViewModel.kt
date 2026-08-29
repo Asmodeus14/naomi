@@ -66,6 +66,9 @@ class NoteDetailViewModel(application: Application) : AndroidViewModel(applicati
             )
             try {
                 repository.setTaskCompleted(taskId, !isCompleted)
+                // Otherwise a ticked-off task still fires its reminder, which
+                // teaches the user to ignore Naomi's notifications.
+                getApplication<NaomiApp>().syncRemindersUseCase()
             } catch (e: Exception) {
                 Log.e(TAG, "Could not update task $taskId", e)
                 _uiState.value = loaded

@@ -419,6 +419,9 @@ class KnowledgeRepositoryImpl(
 
     override fun getPendingTasksFlow(): Flow<List<TaskEntity>> = taskDao.getPendingTasksFlow()
 
+    override suspend fun getPendingTasks(): List<TaskEntity> =
+        withContext(Dispatchers.IO) { taskDao.getPendingTasks() }
+
     override fun getAllTasksFlow(): Flow<List<TaskEntity>> = taskDao.getAllTasksFlow()
 
     override suspend fun setTaskCompleted(taskId: Long, isCompleted: Boolean) = withContext(Dispatchers.IO) {

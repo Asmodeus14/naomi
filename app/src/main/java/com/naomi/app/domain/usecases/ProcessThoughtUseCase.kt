@@ -2,6 +2,7 @@ package com.naomi.app.domain.usecases
 
 import android.util.Log
 import com.naomi.app.ai.intelligence.LocalIntelligenceEngine
+import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.data.database.entities.NoteEntity
 import com.naomi.app.domain.intelligence.IntelligenceProvider
 import com.naomi.app.domain.model.ExtractedKnowledge
@@ -28,7 +29,18 @@ class ProcessThoughtUseCase(
     private val providers: List<IntelligenceProvider>
 ) {
 
-    operator fun invoke(rawTranscript: String): Flow<ProcessingStage> = flow {
+    /**
+     * @param source    where the words came from — spoken, typed, or shared in
+     *                  from another app. Stored on each memory entry so shared
+     *                  web content stays distinguishable from the user's own
+     *                  words later.
+     * @param sourceUrl the link the text arrived with, when there was one.
+     */
+    operator fun invoke(
+        rawTranscript: String,
+        source: String = MemoryEntryEntity.SOURCE_SPOKEN,
+        sourceUrl: String? = null
+    ): Flow<ProcessingStage> = flow {
         val clean = rawTranscript.trim()
         if (clean.isBlank()) {
             emit(ProcessingStage.Failed(FailureReason.NOTHING_HEARD))
@@ -68,7 +80,9 @@ class ProcessThoughtUseCase(
                 saved += knowledgeRepository.saveNote(
                     knowledge = knowledge,
                     rawTranscript = rawTranscript,
-                    cleanTranscript = segment
+                    cleanTranscript = segment,
+                    source = source,
+                    sourceUrl = sourceUrl
                 )
             }
         } catch (e: Exception) {

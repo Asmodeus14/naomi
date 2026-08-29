@@ -36,6 +36,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY dueAt IS NULL, dueAt ASC, createdAt DESC")
     fun getPendingTasksFlow(): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY dueAt IS NULL, dueAt ASC, createdAt DESC")
+    suspend fun getPendingTasks(): List<TaskEntity>
+
     @Query("SELECT * FROM tasks WHERE topicId = :topicId ORDER BY isCompleted ASC, dueAt IS NULL, dueAt ASC")
     suspend fun getTasksForTopic(topicId: Long): List<TaskEntity>
 

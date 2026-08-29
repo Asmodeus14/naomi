@@ -57,6 +57,9 @@ interface KnowledgeRepository {
 
     fun getTasksForNoteFlow(noteId: Long): Flow<List<TaskEntity>>
     fun getPendingTasksFlow(): Flow<List<TaskEntity>>
+
+    /** Everything still outstanding. Used to reconcile reminders with reality. */
+    suspend fun getPendingTasks(): List<TaskEntity>
     fun getAllTasksFlow(): Flow<List<TaskEntity>>
     suspend fun setTaskCompleted(taskId: Long, isCompleted: Boolean)
 

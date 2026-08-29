@@ -1,6 +1,7 @@
 package com.naomi.app.presentation.note
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -255,6 +257,43 @@ fun NoteDetailScreen(
                         color = MaterialTheme.colorScheme.onBackground,
                         lineHeight = 26.sp
                     )
+                }
+
+                // Where a shared memory came from. A link Naomi kept but never
+                // showed would be a memory the user cannot actually return to.
+                // Opening it hands the URL to the browser; Naomi itself holds no
+                // INTERNET permission and fetches nothing.
+                val sourceUrl = currentDetail.entries.lastOrNull { !it.sourceUrl.isNullOrBlank() }?.sourceUrl
+                if (sourceUrl != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl))
+                                        )
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(NaomiSpacing.sm)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = sourceUrl,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
 
                 // Indented Structural Section (Idea, Task, Related) with left guide line

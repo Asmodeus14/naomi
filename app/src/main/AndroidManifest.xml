@@ -14,6 +14,16 @@
     <!-- Required by AudioProcessingService.triggerHaptic; without it every
          haptic failed silently behind a catch block. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!--
+      Alarms do not survive a reboot, so without this a reminder set on Tuesday
+      for Friday is lost by a restart on Wednesday — silently, with the task
+      still sitting in the app looking handled.
+
+      Note what is *not* here: SCHEDULE_EXACT_ALARM. Naomi's deadlines come from
+      phrases like "by Friday", not from a time the user set to the minute, so
+      inexact alarms are the honest fit. See ReminderScheduler.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
       Removing these is the single most important line in this file.
@@ -66,6 +76,18 @@
                 <action android:name="com.naomi.app.ACTION_QUICK_CAPTURE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!--
+              Share Sheet. Text and links shared from anywhere become memories,
+              filed the same way speech is. Only text/plain is accepted, because
+              that is the only thing Naomi can actually understand — claiming
+              other types and then discarding them would be worse than not
+              appearing in the sheet at all.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <!-- Foreground Audio Service -->
@@ -73,6 +95,25 @@
             android:name=".audio.AudioProcessingService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!--
+          Reminders. Both are exported="false": nothing outside Naomi has any
+          business firing a reminder or asking it to reschedule. BootReceiver is
+          the one exception the system itself needs, and the boot broadcast is
+          delivered to non-exported receivers all the same.
+        -->
+        <receiver
+            android:name=".reminder.ReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".reminder.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Home Screen AppWidget -->
         <receiver

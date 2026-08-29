@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.naomi.app.NaomiApp
+import com.naomi.app.ai.intelligence.SharedTextParser
 import com.naomi.app.ai.speech.SpeechState
+import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.data.database.entities.NoteEntity
 import com.naomi.app.data.database.entities.TopicEntity
 import com.naomi.app.domain.model.FailureReason
@@ -32,6 +34,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val rootTopics: StateFlow<List<TopicEntity>> = knowledgeRepository
         .getRootTopicsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Fires when a memory just produced a dated reminder.
+     *
+     * POST_NOTIFICATIONS was declared but never requested, so on Android 13+ it
+     * sat denied and every reminder was dropped silently — the feature shipped
+     * looking present and doing nothing. The ask happens here rather than at
+     * launch because this is the one moment it can be justified: the user has
+     * just asked out loud to be reminded of something.
+     */
+    private val _reminderScheduled = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val reminderScheduled: SharedFlow<Unit> = _reminderScheduled.asSharedFlow()
 
     private val _captureState = MutableStateFlow<CaptureUiState>(CaptureUiState.Idle)
     val captureState: StateFlow<CaptureUiState> = _captureState.asStateFlow()
@@ -117,10 +131,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         NaomiWidgetProvider.updateWidgetState(app, WidgetState.IDLE)
     }
 
-    fun processThought(transcript: String) {
+    /**
+     * Text arriving from another app's Share Sheet.
+     *
+     * Handled by exactly the same pipeline as speech — a shared paragraph is
+     * still a thought the user wants kept, and giving it a separate path would
+     * mean a second place for filing to go wrong. Only the recorded source
+     * differs, so a link can be told apart from something said out loud.
+     */
+    fun processSharedText(subject: String, body: String) {
+        val shared = SharedTextParser.parse(subject, body)
+        if (shared.text.isBlank()) return
+        processThought(
+            transcript = shared.text,
+            source = MemoryEntryEntity.SOURCE_SHARED,
+            sourceUrl = shared.url
+        )
+    }
+
+    fun processThought(
+        transcript: String,
+        source: String = MemoryEntryEntity.SOURCE_SPOKEN,
+        sourceUrl: String? = null
+    ) {
         processingJob?.cancel()
         processingJob = viewModelScope.launch {
-            processThoughtUseCase(transcript)
+            processThoughtUseCase(transcript, source, sourceUrl)
                 // Any exception that escapes the use case still has to leave the
                 // UI somewhere the user can act from, never pinned on a spinner.
                 .catch { e ->
@@ -150,6 +186,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     NaomiWidgetProvider.updateWidgetState(
                         app, WidgetState.SUCCESS, "Remembered", note.title
                     )
+                    // A deadline heard in what was just said is worthless until
+                    // it is on the system clock. Reconciling the whole set is
+                    // cheap and cannot leave a task half-scheduled.
+                    viewModelScope.launch {
+                        try {
+                            if (app.syncRemindersUseCase() > 0) _reminderScheduled.emit(Unit)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Could not schedule reminders", e)
+                        }
+                    }
                 }
             }
 
