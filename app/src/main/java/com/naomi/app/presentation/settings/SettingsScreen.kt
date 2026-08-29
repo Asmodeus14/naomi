@@ -152,54 +152,47 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Theme Mode Selectors
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                        AppThemeMode.entries.forEach { mode ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.setThemeMode(mode) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = themeMode == mode,
-                                        onClick = { viewModel.setThemeMode(mode) }
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = mode.label,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-
-                                // Visual Indicator circle
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            when (mode) {
-                                                AppThemeMode.LIGHT -> StitchLightBackground
-                                                AppThemeMode.DARK -> StitchDarkBackground
-                                                AppThemeMode.SYSTEM -> MaterialTheme.colorScheme.primary
-                                            }
-                                        )
-                                        .border(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.outlineVariant,
-                                            CircleShape
-                                        )
+                Column {
+                    AppThemeMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setThemeMode(mode) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = themeMode == mode,
+                                    onClick = { viewModel.setThemeMode(mode) }
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
+
+                            // Visual Indicator circle
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when (mode) {
+                                            AppThemeMode.LIGHT -> StitchLightBackground
+                                            AppThemeMode.DARK -> StitchDarkBackground
+                                            AppThemeMode.SYSTEM -> MaterialTheme.colorScheme.primary
+                                        }
+                                    )
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant,
+                                        CircleShape
+                                    )
+                            )
                         }
                     }
                 }
@@ -210,51 +203,44 @@ fun SettingsScreen(
                 NaomiSectionHeader(title = "PRIVACY CENTER")
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.Lock,
-                                contentDescription = null,
-                                tint = LocalNaomiAccents.current.success,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Your memories stay on this device.",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Every row here is a fact the code can back up. The
-                        // audio row used to read "Not stored permanently" while
-                        // the retention selector below offered "Keep forever" —
-                        // a claim the app's own settings contradicted. It now
-                        // reports whatever the user actually chose.
-                        PrivacyRow(
-                            label = "Network access",
-                            value = "None — no INTERNET permission"
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = LocalNaomiAccents.current.success,
+                            modifier = Modifier.size(22.dp)
                         )
-                        PrivacyRow(label = "Transcription", value = "On this device")
-                        PrivacyRow(
-                            label = "Understanding",
-                            value = when (nanoStatus) {
-                                is NanoStatus.Active -> "Gemini Nano, on this device"
-                                else -> "Built-in, on this device"
-                            }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Your memories stay on this device.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        PrivacyRow(label = "Audio", value = retentionPolicy.label)
-                        PrivacyRow(label = "Analytics", value = "None")
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Every row here is a fact the code can back up. The
+                    // audio row used to read "Not stored permanently" while
+                    // the retention selector below offered "Keep forever" —
+                    // a claim the app's own settings contradicted. It now
+                    // reports whatever the user actually chose.
+                    PrivacyRow(
+                        label = "Network access",
+                        value = "None — no INTERNET permission"
+                    )
+                    PrivacyRow(label = "Transcription", value = "On this device")
+                    PrivacyRow(
+                        label = "Understanding",
+                        value = when (nanoStatus) {
+                            is NanoStatus.Active -> "Gemini Nano, on this device"
+                            else -> "Built-in, on this device"
+                        }
+                    )
+                    PrivacyRow(label = "Audio", value = retentionPolicy.label)
+                    PrivacyRow(label = "Analytics", value = "None")
                 }
             }
 
@@ -263,53 +249,46 @@ fun SettingsScreen(
                 NaomiSectionHeader(title = "UNDERSTANDING")
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = when (nanoStatus) {
-                                is NanoStatus.Checking -> "Checking this device…"
-                                is NanoStatus.Active -> "Gemini Nano"
-                                is NanoStatus.Downloading -> "Preparing Gemini Nano…"
-                                is NanoStatus.Downloadable -> "Gemini Nano available"
-                                is NanoStatus.Unsupported -> "Built-in understanding"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = when (nanoStatus) {
-                                is NanoStatus.Checking ->
-                                    "Seeing whether this device can run Gemini Nano."
-                                is NanoStatus.Active ->
-                                    "Titles and topics come from Gemini Nano, run by Android's AICore service on this device. Naomi never sends your words anywhere."
-                                is NanoStatus.Downloading ->
-                                    "Android is fetching the model. This happens once."
-                                is NanoStatus.Downloadable ->
-                                    "This device can run Gemini Nano. Android will fetch the model once, then everything stays local."
-                                is NanoStatus.Unsupported ->
-                                    "Gemini Nano isn't available here, so Naomi uses its built-in keyphrase engine. It runs entirely on this device and needs no model."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
-                        )
+                Column {
+                    Text(
+                        text = when (nanoStatus) {
+                            is NanoStatus.Checking -> "Checking this device…"
+                            is NanoStatus.Active -> "Gemini Nano"
+                            is NanoStatus.Downloading -> "Preparing Gemini Nano…"
+                            is NanoStatus.Downloadable -> "Gemini Nano available"
+                            is NanoStatus.Unsupported -> "Built-in understanding"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = when (nanoStatus) {
+                            is NanoStatus.Checking ->
+                                "Seeing whether this device can run Gemini Nano."
+                            is NanoStatus.Active ->
+                                "Titles and topics come from Gemini Nano, run by Android's AICore service on this device. Naomi never sends your words anywhere."
+                            is NanoStatus.Downloading ->
+                                "Android is fetching the model. This happens once."
+                            is NanoStatus.Downloadable ->
+                                "This device can run Gemini Nano. Android will fetch the model once, then everything stays local."
+                            is NanoStatus.Unsupported ->
+                                "Gemini Nano isn't available here, so Naomi uses its built-in keyphrase engine. It runs entirely on this device and needs no model."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
 
-                        if (nanoStatus is NanoStatus.Downloadable) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(
-                                onClick = { viewModel.downloadNano() },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Enable Gemini Nano")
-                            }
+                    if (nanoStatus is NanoStatus.Downloadable) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = { viewModel.downloadNano() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Enable Gemini Nano")
                         }
                     }
                 }
@@ -320,55 +299,48 @@ fun SettingsScreen(
                 NaomiSectionHeader(title = "HOME SCREEN WIDGET")
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Quick Capture Widget",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Quick Capture Widget",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Tap. Speak. Naomi remembers.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Text(
+                                text = "Tap. Speak. Naomi remembers.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+                            val myProvider = android.content.ComponentName(context, com.naomi.app.widget.NaomiWidgetProvider::class.java)
+                            if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                                appWidgetManager.requestPinAppWidget(myProvider, null, null)
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = {
-                                val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-                                val myProvider = android.content.ComponentName(context, com.naomi.app.widget.NaomiWidgetProvider::class.java)
-                                if (appWidgetManager.isRequestPinAppWidgetSupported) {
-                                    appWidgetManager.requestPinAppWidget(myProvider, null, null)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Add to Home Screen", style = MaterialTheme.typography.labelLarge)
-                        }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Add to Home Screen", style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -378,32 +350,25 @@ fun SettingsScreen(
                 NaomiSectionHeader(title = "AUDIO RETENTION")
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                        RetentionPolicy.entries.forEach { policy ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.setRetentionPolicy(policy) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = retentionPolicy == policy,
-                                    onClick = { viewModel.setRetentionPolicy(policy) }
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = policy.label,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                Column {
+                    RetentionPolicy.entries.forEach { policy ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setRetentionPolicy(policy) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = retentionPolicy == policy,
+                                onClick = { viewModel.setRetentionPolicy(policy) }
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = policy.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
@@ -428,57 +393,50 @@ fun SettingsScreen(
                     }
                 }
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = "Memories & topics", style = MaterialTheme.typography.bodyMedium)
-                            Text(text = formatMb(stats?.databaseBytes ?: 0L), style = NaomiMonoLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = "Stored audio", style = MaterialTheme.typography.bodyMedium)
-                            Text(text = formatMb(stats?.audioBytes ?: 0L), style = NaomiMonoLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Memories & topics", style = MaterialTheme.typography.bodyMedium)
+                        Text(text = formatMb(stats?.databaseBytes ?: 0L), style = NaomiMonoLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Stored audio", style = MaterialTheme.typography.bodyMedium)
+                        Text(text = formatMb(stats?.audioBytes ?: 0L), style = NaomiMonoLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 14.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                        )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 14.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = "Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-                            Text(text = formatMb(stats?.totalBytes ?: 0L), style = NaomiMonoLabel, fontWeight = FontWeight.SemiBold)
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                        Text(text = formatMb(stats?.totalBytes ?: 0L), style = NaomiMonoLabel, fontWeight = FontWeight.SemiBold)
+                    }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                        // Offered only when there is audio to delete; an always-on
-                        // button that silently does nothing teaches the user to
-                        // distrust the whole screen.
-                        OutlinedButton(
-                            onClick = { viewModel.cleanAudio() },
-                            enabled = (stats?.audioBytes ?: 0L) > 0L,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Outlined.CleaningServices, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Delete stored audio")
-                        }
+                    // Offered only when there is audio to delete; an always-on
+                    // button that silently does nothing teaches the user to
+                    // distrust the whole screen.
+                    OutlinedButton(
+                        onClick = { viewModel.cleanAudio() },
+                        enabled = (stats?.audioBytes ?: 0L) > 0L,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Outlined.CleaningServices, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete stored audio")
                     }
                 }
             }

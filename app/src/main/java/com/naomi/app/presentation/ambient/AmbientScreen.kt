@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naomi.app.presentation.components.NaomiOrb
+import com.naomi.app.presentation.components.NaomiPill
+import com.naomi.app.presentation.components.NaomiRow
 import com.naomi.app.presentation.components.NaomiSectionHeader
 import com.naomi.app.presentation.components.OrbVisualState
 import com.naomi.app.presentation.theme.*
@@ -107,21 +109,11 @@ fun AmbientScreen(
 
             if (sessionState.isActive && !sessionState.currentTopic.isNullOrBlank()) {
                 item {
-                    Surface(
-                        shape = NaomiShapes.pill,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            NaomiShapes.hairline,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                        )
-                    ) {
-                        Text(
-                            text = "Topic: ${sessionState.currentTopic}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = LocalNaomiAccents.current.idea,
-                            modifier = Modifier.padding(horizontal = NaomiSpacing.md, vertical = NaomiSpacing.sm)
-                        )
-                    }
+                    // A chip is one of the few things that still earns an edge:
+                    // it is a single floating token, not a row in a list. Reusing
+                    // NaomiPill rather than rebuilding it keeps that judgement in
+                    // one place.
+                    NaomiPill(text = "Topic: ${sessionState.currentTopic}")
                 }
             }
 
@@ -151,20 +143,11 @@ fun AmbientScreen(
                 }
 
                 items(sessionState.recentNotes) { noteTitle ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = NaomiShapes.medium,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            NaomiShapes.hairline,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                        )
-                    ) {
+                    NaomiRow {
                         Text(
                             text = noteTitle,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(14.dp)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }

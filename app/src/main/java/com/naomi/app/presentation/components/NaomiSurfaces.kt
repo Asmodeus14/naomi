@@ -17,11 +17,60 @@ import com.naomi.app.presentation.theme.NaomiShapes
 import com.naomi.app.presentation.theme.NaomiSpacing
 
 /**
- * The one card in the app.
+ * A tappable row of content, held together by space rather than by a box.
  *
- * Every bordered container uses this, so radius, border weight and surface tint
- * stay identical everywhere. Previously this exact block was hand-written in
- * nine files at six different radii.
+ * This replaces the bordered card that used to wrap every list item. Eighteen
+ * of them meant the eye had to cross a boundary to reach each memory, and a
+ * screen of six memories read as six objects competing rather than one list to
+ * scan. Space, a consistent left edge and type weight do the same grouping work
+ * without drawing anything.
+ *
+ * Separation between rows belongs to the list, not to the row — a row that
+ * padded itself generously ended up double-spaced inside a list that was already
+ * spacing its children, and the result read as disconnected fragments rather
+ * than a list. So the row claims only the height it needs to stay tappable:
+ * `heightIn` guarantees the 48dp target the vanished border used to imply, and
+ * the small padding keeps text off that boundary.
+ */
+@Composable
+fun NaomiRow(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = 48.dp)
+            .padding(vertical = NaomiSpacing.xs),
+        verticalArrangement = Arrangement.Center,
+        content = content
+    )
+}
+
+/**
+ * A hairline between rows.
+ *
+ * Used only where the rows are discrete choices — settings, mostly — because
+ * there the user is scanning for a boundary. A list of memories gets whitespace
+ * instead: they are one continuous thing, and ruling between them says otherwise.
+ */
+@Composable
+fun NaomiRowDivider(modifier: Modifier = Modifier) {
+    HorizontalDivider(
+        modifier = modifier,
+        thickness = NaomiShapes.hairline,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    )
+}
+
+/**
+ * A bordered container, kept for the one case that earns it.
+ *
+ * Everything else that used this is now [NaomiRow]. What survives is content
+ * that *is* a surface — the theme preview, which shows the user what the app's
+ * background looks like and therefore needs an edge to be a sample of anything.
  */
 @Composable
 fun NaomiCard(

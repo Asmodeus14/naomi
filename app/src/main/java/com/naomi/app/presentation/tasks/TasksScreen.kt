@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.presentation.components.NaomiEmptyState
+import com.naomi.app.presentation.components.NaomiRow
 import com.naomi.app.presentation.components.NaomiSectionHeader
 import com.naomi.app.presentation.components.bucketOf
 import com.naomi.app.presentation.components.rememberDueLabel
@@ -137,18 +138,9 @@ fun TaskItemRow(
     onToggle: () -> Unit,
     onClickNote: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClickNote() },
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-    ) {
+    NaomiRow(onClick = onClickNote) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Minimalist square checkbox

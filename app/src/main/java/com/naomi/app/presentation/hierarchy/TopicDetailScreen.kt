@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naomi.app.domain.model.TimelineEntry
 import com.naomi.app.presentation.components.MemoryRow
 import com.naomi.app.presentation.components.NaomiEmptyState
+import com.naomi.app.presentation.components.NaomiRow
 import com.naomi.app.presentation.components.NaomiSectionHeader
 import com.naomi.app.presentation.theme.*
 import java.time.Instant
@@ -164,23 +165,16 @@ fun TopicDetailScreen(
                 )
             }
 
-            // Generated Topic Summary Description
+            // One sentence about the topic. It was boxed, which made a line of
+            // plain text look like a component; it is just a subtitle.
             if (topicSummary.isNotBlank()) {
                 item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = topicSummary,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 22.sp,
-                            modifier = Modifier.padding(18.dp)
-                        )
-                    }
+                    Text(
+                        text = topicSummary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 22.sp
+                    )
                 }
             }
 
@@ -191,18 +185,9 @@ fun TopicDetailScreen(
                 }
 
                 items(subtopics, key = { it.id }) { sub ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToSubtopic(sub.id) },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
+                    NaomiRow(onClick = { onNavigateToSubtopic(sub.id) }) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
