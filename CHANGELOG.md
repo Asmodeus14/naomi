@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.1.0] - 2026-08-29
+
+First release. The **Changed** and **Fixed** entries below describe work done on
+the implementation *before* it was ever published — nothing in them was shipped
+to anyone. They are recorded because several were claims the project made about
+itself that were not true, and a changelog that quietly starts from the corrected
+state is a changelog that hides them.
+
 ### Added
 - **Gemini Nano understanding**, run by Android's AICore system service where the
   device supports it, with the built-in keyphrase engine as the always-available
@@ -78,11 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.1.0] - 2026-08-25
+## Pre-release implementation - 2026-08-25
 
-Initial implementation.
+The initial generated implementation. Never published; recorded here so the
+**Changed** and **Fixed** entries above have something to refer to.
 
-### Added
 - On-device speech-to-text with a live waveform visualiser.
 - Extraction of topics, tasks, ideas and decisions from a transcript.
 - Typography-first interface with the animated Naomi Orb.
