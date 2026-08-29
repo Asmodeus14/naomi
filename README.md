@@ -313,9 +313,9 @@ in the launcher process at inflate time.
 
 ## Status
 
-**Naomi has not had a stable release, and the version in this repository is
-`0.1.0` with no tag.** Release builds are unsigned; there is no keystore here and
-there should not be one.
+**Naomi is pre-1.0. The current version is `0.2.0`.** Release builds are
+unsigned — there is no keystore in this repository and there should not be one —
+so the published APK is a draft you sign yourself before installing.
 
 What works and is verified on a device: capture by voice or text, title and topic
 extraction, topic reuse across sessions, subtopic nesting, **memories that

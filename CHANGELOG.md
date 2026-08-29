@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-08-29
+
+The release where a memory stops being a single utterance.
+
 ### Added
 - **Living memory.** Saying more about something you have already told Naomi
   continues that memory rather than creating a second one, and the memory keeps
@@ -46,6 +52,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The vertical guide line used `fillMaxHeight()` inside a `LazyColumn` item,
   where the incoming height constraint is unbounded, so it resolved to zero and
   had never drawn.
+- **Opening a topic could crash.** `TopicDetailScreen` lists subtopics, timeline
+  days and memories in one `LazyColumn` keyed on raw database ids — but topic 2
+  and note 2 are unrelated rows that happen to share an id, and Compose throws
+  when a key repeats. Any topic whose subtopic id collided with one of its note
+  ids died on open.
+- Related-topic pills could not wrap. A `Row` does not wrap, so a third related
+  topic was squeezed into a sliver one character wide; the repository returns up
+  to six.
+
+### Changed
+- **The interface was de-carded.** Eighteen bordered containers became four.
+  Space, a shared left edge and type weight do the grouping that boxes were
+  doing; a screen of six memories now reads as one list to scan rather than six
+  objects competing. What survives is a chip and the theme preview, which is
+  literally a sample of the app's surface and needs an edge to be a sample of
+  anything.
+- **A real launcher icon.** The old one was a placeholder — a dark square with a
+  white dot, and a plain `<vector>` rather than an `<adaptive-icon>`, so the
+  launcher could not mask it to the device's shape, the "round" variant was
+  identical to the square one, and Android 13's themed icons had no monochrome
+  layer and fell back to a washed-out square.
+- Every screenshot in the README was recaptured from the running app.
 
 ---
 
