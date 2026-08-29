@@ -2,13 +2,13 @@
 
 ## Supported Versions
 
-Naomi has not had a stable release. The only supported version is whatever is
-currently on `main`.
+Naomi is pre-1.0. Fixes land on `main`; the latest release is patched only by
+the next release.
 
 | Version | Supported          |
 | ------- | ------------------ |
 | `main`  | :white_check_mark: |
-| 0.1.0   | :x:                |
+| 0.1.0   | :white_check_mark: |
 
 ---
 
