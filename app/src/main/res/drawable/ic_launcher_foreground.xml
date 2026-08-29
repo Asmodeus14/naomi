@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Naomi mark, traced from assets/logo_sheet.png.
+
+  The sheet is a flattened 6 MB raster with no vector source, so the artwork was
+  recovered by thresholding its 512px rendering and tracing the contours, then
+  simplified until the polygon was indistinguishable from the original at every
+  size a launcher uses. 120 points: finer made no visible difference, coarser
+  faceted the ring.
+
+  Colours are the app's, not the sheet's. The sheet specifies #5F8BB0 and a warm
+  #343432, neither of which appears anywhere else in Naomi. Using them would have
+  created a third answer to "what colour is Naomi" — exactly the ambiguity
+  values/colors.xml records having just removed. Ink is onBackground; the dot is
+  the slate primary the orb already uses.
+
+  The mark is 56 units across in a 108 viewport. That is comfortably inside the
+  72dp safe zone every launcher mask keeps, and was chosen against 62 and 50
+  rendered inside a circular mask — 62 crowded the edge, 50 floated.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#1B1C1D"
+        android:fillType="evenOdd"
+        android:pathData="M50.55,26.21L57.45,26.21L61.00,26.84L65.39,28.30L71.03,31.64L75.52,35.93L78.03,39.48L80.12,43.66L81.79,49.72L82.00,56.40L81.58,59.33L80.12,64.34L77.19,69.78L73.12,74.48L68.94,77.61L63.93,80.12L58.49,81.58L51.39,81.79L47.63,81.16L42.19,79.28L37.60,76.57L32.48,71.87L30.39,69.15L27.46,63.30L26.21,58.28L26.00,51.60L26.84,47.00L28.30,42.82L29.55,40.31L32.27,36.34L36.55,32.06L39.90,29.76L44.91,27.46L50.55,26.21Z
+        M51.18,30.81L45.96,32.27L42.93,34.04L47.42,34.78L50.97,36.03L53.90,37.49L58.49,40.84L61.73,44.07L65.18,48.57L65.07,44.49L64.03,39.27L62.36,35.51L61.31,34.04L58.91,32.06L56.40,31.01L51.18,30.81Z
+        M68.10,35.82L69.67,43.66L70.09,51.39L69.25,60.58L69.04,61.21L67.48,62.36L66.01,62.36L64.66,61.42L62.99,55.36L60.69,50.55L58.18,47.21L55.57,44.60L52.85,42.51L48.04,40.00L45.12,39.16L42.19,38.96L38.43,39.79L36.34,41.04L34.57,42.61L33.10,44.49L31.22,49.09L30.81,51.60L30.81,56.61L31.85,61.00L33.73,64.97L35.40,67.48L39.06,71.13L39.69,71.55L39.79,71.24L38.75,67.27L38.12,62.67L38.12,53.06L38.75,47.42L39.69,46.27L40.52,45.85L41.78,45.85L43.13,46.79L44.81,52.64L46.27,55.78L48.15,58.70L53.06,63.82L57.03,66.54L62.04,68.63L67.06,68.84L71.03,67.37L72.91,65.91L74.69,63.93L75.94,61.63L76.99,57.45L77.19,51.81L76.78,49.09L75.10,44.28L73.43,41.36L70.93,38.22L68.10,35.82Z
+        M42.82,59.22L42.93,64.13L44.18,69.57L46.27,73.54L48.88,75.73L52.43,76.99L56.82,76.99L62.25,75.52L65.49,73.75L62.04,73.43L58.49,72.39L52.43,69.25L49.72,67.16L45.64,63.09L42.82,59.22Z" />
+
+    <!-- 5% larger than the traced hole, so no hairline of background shows
+         between the dot and the swirl. -->
+    <path
+        android:fillColor="#4E5E6D"
+        android:pathData="M54.00,53.79m-4.94,0a4.94,4.94 0,1 1,9.87 0a4.94,4.94 0,1 1,-9.87 0" />
+</vector>
