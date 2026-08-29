@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,6 +7,65 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+/**
+ * Upload-key credentials, from a local ignored file or from the environment.
+ *
+ * Two sources, in that order, because the two situations are different. On a
+ * developer machine the credentials live in `keystore.properties`, which is in
+ * .gitignore and points at a keystore kept *outside* the repository so it cannot
+ * be committed even by accident. In CI there is no such file: the workflow
+ * decodes the keystore from a secret and passes the passwords as environment
+ * variables.
+ *
+ * Nothing here has a default. If neither source provides credentials, release
+ * builds are left unsigned rather than silently falling back to the debug key —
+ * an app signed with the debug key cannot be uploaded to Play, and discovering
+ * that at upload time is worse than discovering it at build time.
+ */
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, env: String): String? =
+    (keystoreProperties.getProperty(key) ?: System.getenv(env))?.takeIf { it.isNotBlank() }
+
+val uploadStoreFile = signingValue("storeFile", "KEYSTORE_FILE")
+val uploadStorePassword = signingValue("storePassword", "KEYSTORE_PASSWORD")
+val uploadKeyAlias = signingValue("keyAlias", "KEY_ALIAS")
+val uploadKeyPassword = signingValue("keyPassword", "KEY_PASSWORD")
+
+val hasUploadKey = uploadStoreFile != null &&
+    uploadStorePassword != null &&
+    uploadKeyAlias != null &&
+    uploadKeyPassword != null &&
+    file(uploadStoreFile!!).exists()
+
+/**
+ * versionName is edited by hand; versionCode is supplied by CI.
+ *
+ * Play rejects an upload whose versionCode already exists, and it can never be
+ * reused even after a release is deleted — so the one property that matters is
+ * that the number only ever goes up. A human remembering to increment it is the
+ * part that fails, usually on the second upload of the day.
+ *
+ * CI passes `VERSION_CODE` as a base plus the workflow run number, which is
+ * monotonic per repository and needs no state. [VERSION_CODE_FALLBACK] is only
+ * for local builds, where the number is never seen by Play; it stays above the
+ * codes already consumed by 0.1.0 and 0.2.0 so a locally built artifact can
+ * still be installed over a store one.
+ *
+ * versionName is deliberately *not* automated. It is the number a human reads,
+ * and it should change because a release means something, not because a build
+ * happened. See DEPLOYMENT.md.
+ */
+val VERSION_CODE_FALLBACK = 3
+
+val releaseVersionCode: Int =
+    (System.getenv("VERSION_CODE") ?: providers.gradleProperty("versionCode").orNull)
+        ?.toIntOrNull()
+        ?: VERSION_CODE_FALLBACK
 
 android {
     namespace = "com.naomi.app"
@@ -15,7 +75,7 @@ android {
         applicationId = "com.naomi.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
+        versionCode = releaseVersionCode
         versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -45,12 +105,31 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("upload") {
+                storeFile = file(uploadStoreFile!!)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+                // Both signature schemes: v1 for API 26-27, v2+ for the rest.
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
+            // Only ever the upload key, never the debug key. When no credentials
+            // are available the build stays unsigned and `verifyReleaseSigning`
+            // below says so, rather than producing something that looks
+            // installable and is rejected by Play.
+            signingConfig = if (hasUploadKey) signingConfigs.getByName("upload") else null
             // Was false, which made the proguardFiles below inert and shipped an
             // unshrunk ~19MB APK.
             isMinifyEnabled = true
@@ -154,6 +233,38 @@ androidComponents.onVariants { variant ->
 
     // Hook into `check` so CI and `./gradlew check` both enforce it.
     tasks.named("check").configure { dependsOn(checkTask) }
+}
+
+/**
+ * Fails a release build that is not signed with the upload key.
+ *
+ * The failure mode this exists for is quiet: a missing secret in CI produces an
+ * unsigned artifact, the workflow goes green, and the problem only surfaces when
+ * Play rejects the upload — or worse, when a debug-signed build is published to
+ * testers and can never be updated by a properly signed one.
+ */
+tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Asserts release builds are signed with the upload key, not the debug key."
+
+    doLast {
+        if (!hasUploadKey) {
+            throw GradleException(
+                """
+                No upload-key credentials, so the release build would be unsigned.
+
+                Locally:  copy keystore.properties.example to keystore.properties and
+                          fill it in. The keystore itself belongs outside this repo.
+                In CI:    set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and
+                          KEY_PASSWORD. See DEPLOYMENT.md.
+
+                Release builds deliberately do not fall back to the debug key: an app
+                signed with it cannot be uploaded to Play, and a debug-signed build
+                that reached testers could never be updated by a real one.
+                """.trimIndent()
+            )
+        }
+    }
 }
 
 /**

@@ -1,0 +1,95 @@
+name: Android Production Release
+
+# Production is never automatic. Nothing on a push, nothing on a tag, nothing on
+# a merge — this workflow only runs when a human opens the Actions tab and starts
+# it, and even then it asks them to type the word "PRODUCTION" first.
+#
+# The reason is asymmetry: an Internal Testing build reaches people who agreed to
+# test, and a bad one is replaced in minutes. A production release reaches
+# everyone, cannot be unpublished from devices that already installed it, and a
+# staged rollout can only be halted, not undone.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PRODUCTION to confirm'
+        required: true
+        type: string
+      version_code:
+        description: 'versionCode of an existing Internal Testing release to promote'
+        required: true
+        type: string
+      rollout_percentage:
+        description: 'Staged rollout fraction (0.05 = 5%). Use 1.0 for everyone.'
+        required: true
+        default: '0.1'
+        type: string
+
+concurrency:
+  group: android-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote Internal Testing build to Production
+    runs-on: ubuntu-latest
+
+    # A second gate, and the one that actually holds. If you create a GitHub
+    # Environment called `production` with required reviewers, this job pauses
+    # until someone approves it. Without that environment it still runs, so the
+    # typed confirmation above is the minimum. See DEPLOYMENT.md.
+    environment: production
+
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "PRODUCTION" ]; then
+            echo "::error::Confirmation text did not match. Nothing was released."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Deliberately a promotion, not a rebuild. The artifact that testers have
+      # been using is the artifact that goes live — rebuilding from source would
+      # produce a different binary from the one that was actually tested.
+      - name: Write Play service-account key
+        env:
+          PLAY_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_JSON" ]; then
+            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set."
+            exit 1
+          fi
+          printf '%s' "$PLAY_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Promote to Production
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
+        with:
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
+          packageName: com.naomi.app
+          track: production
+          status: inProgress
+          userFraction: ${{ github.event.inputs.rollout_percentage }}
+          # Moves the existing artifact between tracks rather than uploading a
+          # new one, so what ships is exactly what was tested.
+          versionCode: ${{ github.event.inputs.version_code }}
+          fromTrack: internal
+
+      - name: Remove Play service-account key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Summary
+        run: |
+          echo "### Promoted to Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- versionCode: \`${{ github.event.inputs.version_code }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rollout: \`${{ github.event.inputs.rollout_percentage }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The rollout is staged and \`inProgress\`. Increase or halt it in" >> "$GITHUB_STEP_SUMMARY"
+          echo "Play Console → Production → Releases." >> "$GITHUB_STEP_SUMMARY"

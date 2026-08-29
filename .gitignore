@@ -15,11 +15,29 @@ captures/
 *.dex
 
 # Signing material. Nothing here should ever exist in this repository.
+# keystore.properties.example is the one exception: placeholders only.
 *.jks
 *.keystore
+*.p12
+*.pem
+*.key
 keystore.properties
+!keystore.properties.example
 secrets.xml
 google-services.json
+
+# Google Play publishing credentials. The service-account JSON grants upload
+# rights to the Play listing; CI receives it as a secret, writes it to a
+# temporary file and deletes that file at the end of the run.
+service-account.json
+play-service-account*.json
+*-service-account.json
+google-play-*.json
+
+# Environment files
+.env
+.env.*
+!.env.example
 
 # Machine-local configuration
 local.properties

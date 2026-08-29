@@ -311,11 +311,43 @@ in the launcher process at inflate time.
 
 ---
 
+## Android release
+
+Releases are built, signed and shipped by GitHub Actions. Full instructions —
+including the manual steps nobody can automate — are in
+**[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
+```
+push to main  →  lint · tests · privacy gates  →  signed AAB  →  Play Internal Testing
+manual run    →  promote that exact artifact   →  Play Production (staged)
+```
+
+- **Internal Testing is automatic.** It is a closed track visible only to listed
+  testers, so reaching it on every green push is safe.
+- **Production is never automatic.** It needs a manual workflow run, a typed
+  confirmation, and — if you configure the `production` environment — an
+  approval. It *promotes* the artifact testers already have rather than
+  rebuilding, so what ships is what was tested.
+- **Only the `offline` flavour is published.** The `connected` build declares
+  `INTERNET` and must be built from source deliberately.
+
+Signing credentials come from a gitignored `keystore.properties` locally and from
+GitHub secrets in CI. The keystore itself lives outside the repository, and no
+credential is ever committed — see
+[Files that must never be committed](DEPLOYMENT.md#files-that-must-never-be-committed).
+
+```bash
+./gradlew :app:verifyReleaseSigning     # is signing configured?
+./gradlew :app:bundleOfflineRelease     # the AAB Play receives
+```
+
+---
+
 ## Status
 
-**Naomi is pre-1.0. The current version is `0.2.0`.** Release builds are
-unsigned — there is no keystore in this repository and there should not be one —
-so the published APK is a draft you sign yourself before installing.
+**Naomi is pre-1.0. The current version is `0.2.0`.** Release builds are signed
+with an upload key that is not in this repository; `.gitignore` and a build check
+keep it that way. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 What works and is verified on a device: capture by voice or text, title and topic
 extraction, topic reuse across sessions, subtopic nesting, **memories that

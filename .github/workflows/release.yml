@@ -48,29 +48,43 @@ jobs:
       # This previously built and published the *debug* APK. A debuggable build
       # lets anyone with adb read the on-device memory database through `run-as`,
       # which is the opposite of what this app promises. Release only.
-      - name: Build release APK
-        run: ./gradlew assembleOfflineRelease --no-daemon
+      - name: Restore upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 is not set. See DEPLOYMENT.md."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/signing"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/upload.jks"
+          test -s "$RUNNER_TEMP/signing/upload.jks" || { echo "::error::Decoded keystore is empty."; exit 1; }
 
-      # The release build is unsigned: there is no keystore in this repository
-      # and there should not be one. The artifact is published as a draft so a
-      # human signs it before anyone can install it.
+      - name: Build signed release APK
+        env:
+          VERSION_CODE: ${{ 1000 + github.run_number }}
+          KEYSTORE_FILE: ${{ runner.temp }}/signing/upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:verifyReleaseSigning :app:assembleOfflineRelease --no-daemon
+
+      # The APK here is for sideloading and for people who do not use Play; the
+      # Play track is fed by android-release.yml, which uploads the AAB. Still a
+      # draft, so a human decides when it becomes visible.
       - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/offline/release/app-offline-release-unsigned.apk
+          files: app/build/outputs/apk/offline/release/app-offline-release.apk
           generate_release_notes: true
           draft: true
           prerelease: false
           body: |
-            **This APK is unsigned.** Sign it with your own key before installing:
-
-            ```
-            apksigner sign --ks <your-keystore> app-offline-release-unsigned.apk
-            ```
+            Signed with Naomi's upload key and installable directly.
 
             This is the **offline** build. It declares no `INTERNET` permission,
             which you can check for yourself:
 
             ```
-            aapt2 dump permissions app-offline-release-unsigned.apk
+            aapt2 dump permissions app-offline-release.apk
             ```
