@@ -31,11 +31,27 @@ interface KnowledgeRepository {
     suspend fun getNoteById(id: Long): NoteEntity?
     fun getNoteByIdFlow(id: Long): Flow<NoteEntity?>
     suspend fun getNoteDetail(noteId: Long): NoteDetail?
+    /**
+     * Records something the user said.
+     *
+     * This may create a memory or continue an existing one — the caller does
+     * not choose, because the user did not either. [source] and [sourceUrl]
+     * describe where the words came from, which is what lets shared web content
+     * be distinguished from the user's own speech later.
+     */
     suspend fun saveNote(
         knowledge: ExtractedKnowledge,
         rawTranscript: String,
-        cleanTranscript: String
+        cleanTranscript: String,
+        source: String = MemoryEntryEntity.SOURCE_SPOKEN,
+        sourceUrl: String? = null
     ): NoteEntity
+
+    /** The history of one memory, oldest first. */
+    suspend fun getEntriesForNote(noteId: Long): List<MemoryEntryEntity>
+
+    /** Everything said under a topic and its descendants, newest first. */
+    suspend fun getTimelineForTopic(topicId: Long): List<TimelineEntry>
     suspend fun moveNoteToTopic(noteId: Long, newTopicId: Long)
     suspend fun deleteNote(noteId: Long)
 

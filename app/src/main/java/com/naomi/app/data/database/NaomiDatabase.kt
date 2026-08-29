@@ -13,13 +13,14 @@ import com.naomi.app.data.database.entities.*
     entities = [
         TopicEntity::class,
         NoteEntity::class,
+        MemoryEntryEntity::class,
         TaskEntity::class,
         EntityRefEntity::class,
         TopicRelationshipEntity::class,
         RecordingEntity::class,
         SettingEntity::class
     ],
-    version = 2,
+    version = 3,
     // Schemas are checked in so migrations can be tested against them, and so a
     // reviewer can see exactly what changed between versions.
     exportSchema = true
@@ -28,6 +29,7 @@ abstract class NaomiDatabase : RoomDatabase() {
 
     abstract fun topicDao(): TopicDao
     abstract fun noteDao(): NoteDao
+    abstract fun memoryEntryDao(): MemoryEntryDao
     abstract fun taskDao(): TaskDao
     abstract fun entityRefDao(): EntityRefDao
     abstract fun topicRelationshipDao(): TopicRelationshipDao
@@ -163,6 +165,51 @@ abstract class NaomiDatabase : RoomDatabase() {
         }
 
         /**
+         * v2 -> v3.
+         *
+         * Introduces `memory_entries`, which turns a note from a single
+         * utterance into a subject with a history.
+         *
+         * Every existing note is backfilled with one entry reconstructed from
+         * what it already holds, so a user who upgrades sees their memories with
+         * an accurate first history line rather than an empty timeline. The
+         * entry's timestamp is the note's own `createdAt`, not now — the
+         * history has to be true.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `memory_entries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `noteId` INTEGER NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `transcript` TEXT NOT NULL,
+                        `idea` TEXT,
+                        `decision` TEXT,
+                        `source` TEXT NOT NULL,
+                        `sourceUrl` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`noteId`) REFERENCES `notes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_entries_noteId` ON `memory_entries` (`noteId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_entries_createdAt` ON `memory_entries` (`createdAt`)")
+
+                db.execSQL(
+                    """
+                    INSERT INTO `memory_entries` (
+                        noteId, summary, transcript, idea, decision, source, sourceUrl, createdAt
+                    )
+                    SELECT id, summary, cleanTranscript, idea, decision, 'SPOKEN', NULL, createdAt
+                    FROM `notes`
+                    """.trimIndent()
+                )
+            }
+        }
+
+        /**
          * Turns on cascade enforcement. The `ON DELETE` rules declared on these
          * entities are inert unless SQLite is told to honour them, and the
          * pragma resets on every connection, so it belongs in `onOpen`.
@@ -183,7 +230,7 @@ abstract class NaomiDatabase : RoomDatabase() {
                     NaomiDatabase::class.java,
                     "naomi_knowledge.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(enforceForeignKeys)
                     // Deliberately no fallbackToDestructiveMigration. In an app
                     // whose whole promise is remembering things, a failed upgrade

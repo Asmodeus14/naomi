@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.ListAlt
@@ -174,9 +175,28 @@ fun NoteDetailScreen(
                 }
             }
         } else {
-            val dateFormatted = remember(currentDetail.note.createdAt) {
-                val sdf = SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault())
-                sdf.format(Date(currentDetail.note.createdAt))
+            // A memory that has been added to since it was first spoken is not
+            // honestly described by a single timestamp, so once there is a
+            // history the line reports the span instead of the first moment.
+            val hasHistory = currentDetail.entries.size > 1
+            val dateFormatted = remember(
+                currentDetail.note.createdAt,
+                currentDetail.note.updatedAt,
+                hasHistory
+            ) {
+                if (hasHistory) {
+                    val day = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                    "Started ${day.format(Date(currentDetail.note.createdAt))}" +
+                        " · Updated ${day.format(Date(currentDetail.note.updatedAt))}"
+                } else {
+                    SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault())
+                        .format(Date(currentDetail.note.createdAt))
+                }
+            }
+
+            val history = remember(currentDetail.entries) {
+                val day = SimpleDateFormat("MMM d", Locale.getDefault())
+                currentDetail.entries.map { day.format(Date(it.createdAt)) to it.summary }
             }
 
             LazyColumn(
@@ -258,6 +278,57 @@ fun NoteDetailScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
+                            // HISTORY Section — the thing that makes this a
+                            // memory rather than a note. Shown only once there
+                            // is more than one entry: for a memory spoken once,
+                            // the summary above already *is* the whole history,
+                            // and repeating it back would be noise.
+                            if (hasHistory) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.History,
+                                            contentDescription = "History",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "HISTORY",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            letterSpacing = 1.2.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        for ((date, text) in history) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text(
+                                                    text = date,
+                                                    style = NaomiMonoLabel,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        .copy(alpha = 0.7f),
+                                                    modifier = Modifier.width(52.dp)
+                                                )
+                                                Text(
+                                                    text = text,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    lineHeight = 22.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             // IDEA Section
                             if (!currentDetail.note.idea.isNullOrBlank()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

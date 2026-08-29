@@ -1,5 +1,6 @@
 package com.naomi.app.presentation.hierarchy
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,10 +17,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.naomi.app.domain.model.TimelineEntry
 import com.naomi.app.presentation.components.MemoryRow
 import com.naomi.app.presentation.components.NaomiEmptyState
 import com.naomi.app.presentation.components.NaomiSectionHeader
 import com.naomi.app.presentation.theme.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+/** One day's worth of the topic's history, already labelled for display. */
+private data class TimelineDay(
+    val label: String,
+    val entries: List<TimelineEntry>
+)
+
+/**
+ * Buckets a newest-first timeline by calendar day in the device's zone.
+ *
+ * Days are labelled rather than stamped: "Today" and "Yesterday" are how people
+ * actually place a recent thought, and an exact time adds nothing to a history
+ * read at a glance.
+ */
+private fun groupByDay(timeline: List<TimelineEntry>): List<TimelineDay> {
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now(zone)
+    val yesterday = today.minusDays(1)
+    val monthDay = DateTimeFormatter.ofPattern("MMM d")
+    val withYear = DateTimeFormatter.ofPattern("MMM d, yyyy")
+
+    return timeline
+        .groupBy { Instant.ofEpochMilli(it.entry.createdAt).atZone(zone).toLocalDate() }
+        .entries
+        .sortedByDescending { it.key }
+        .map { (date, entries) ->
+            TimelineDay(
+                label = when {
+                    date == today -> "Today"
+                    date == yesterday -> "Yesterday"
+                    date.year == today.year -> date.format(monthDay)
+                    else -> date.format(withYear)
+                },
+                entries = entries
+            )
+        }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +135,13 @@ fun TopicDetailScreen(
         val notes = loaded.notes
         val subtopics = loaded.subtopics
         val topicSummary = loaded.summary
+
+        // The timeline earns its place only when at least one memory here has
+        // been added to since it was first spoken. Otherwise it is the list of
+        // memories again in a different order, which is noise, not history.
+        val timelineDays = remember(loaded.timeline, notes.size) {
+            if (loaded.timeline.size > notes.size) groupByDay(loaded.timeline) else emptyList()
+        }
 
         LazyColumn(
             modifier = outer,
@@ -167,6 +217,61 @@ fun TopicDetailScreen(
                                 contentDescription = "View",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                             )
+                        }
+                    }
+                }
+            }
+
+            // Timeline Section — what has been said under this topic, in order,
+            // including everything filed beneath it.
+            if (timelineDays.isNotEmpty()) {
+                item {
+                    NaomiSectionHeader(title = "TIMELINE")
+                }
+
+                items(timelineDays, key = { it.label }) { day ->
+                    Column(verticalArrangement = Arrangement.spacedBy(NaomiSpacing.sm)) {
+                        Text(
+                            text = day.label,
+                            style = NaomiMonoLabel,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row {
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .background(
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(NaomiSpacing.md))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(NaomiSpacing.md)
+                            ) {
+                                for (moment in day.entries) {
+                                    Column(
+                                        modifier = Modifier.clickable {
+                                            onNavigateToNoteDetail(moment.entry.noteId)
+                                        },
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = moment.noteTitle,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = moment.entry.summary,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 22.sp
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

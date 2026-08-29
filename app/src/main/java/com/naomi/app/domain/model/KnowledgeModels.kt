@@ -68,10 +68,21 @@ data class NoteDetail(
     val topicPath: String = topic.name,
     val tasks: List<TaskEntity> = emptyList(),
     val entities: List<EntityRefEntity> = emptyList(),
+    /** Everything said about this memory, oldest first. */
+    val entries: List<MemoryEntryEntity> = emptyList(),
     /** Topics reached from this memory's named things — computed, not stored. */
     val relatedTopics: List<TopicEntity> = emptyList(),
     /** Other memories that mention the same things, most overlap first. */
     val relatedNotes: List<NoteEntity> = emptyList()
+)
+
+/**
+ * One moment in a topic's history, carrying the memory it belongs to so the
+ * timeline can say what was being talked about, not just what was said.
+ */
+data class TimelineEntry(
+    val entry: MemoryEntryEntity,
+    val noteTitle: String
 )
 
 /**

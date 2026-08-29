@@ -1,6 +1,7 @@
 package com.naomi.app.data.repository
 
 import androidx.room.withTransaction
+import com.naomi.app.ai.intelligence.MemoryMerger
 import com.naomi.app.ai.intelligence.TopicMatcher
 import com.naomi.app.ai.intelligence.TopicResolver
 import com.naomi.app.data.database.NaomiDatabase
@@ -18,6 +19,7 @@ class KnowledgeRepositoryImpl(
     private val topicDao = db.topicDao()
     private val noteDao = db.noteDao()
     private val taskDao = db.taskDao()
+    private val memoryEntryDao = db.memoryEntryDao()
     private val entityRefDao = db.entityRefDao()
     private val relationshipDao = db.topicRelationshipDao()
 
@@ -137,6 +139,7 @@ class KnowledgeRepositoryImpl(
             topicPath = topicPathFor(note),
             tasks = taskDao.getTasksForNote(noteId),
             entities = entityRefDao.getEntitiesForNote(noteId),
+            entries = memoryEntryDao.getEntriesForNote(noteId),
             relatedTopics = relatedTopics,
             relatedNotes = relatedNotes
         )
@@ -170,7 +173,9 @@ class KnowledgeRepositoryImpl(
     override suspend fun saveNote(
         knowledge: ExtractedKnowledge,
         rawTranscript: String,
-        cleanTranscript: String
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?
     ): NoteEntity = withContext(Dispatchers.IO) {
         // One memory is one unit of work. Without a transaction a failure part
         // way through leaves a note with no tasks, or topics with no note.
@@ -202,20 +207,36 @@ class KnowledgeRepositoryImpl(
             val leaf = leafTopic!!
             val now = System.currentTimeMillis()
 
-            val note = NoteEntity(
-                topicId = root.id,
-                subtopicId = if (leaf.id != root.id) leaf.id else null,
-                title = knowledge.title,
-                summary = knowledge.summary,
-                rawTranscript = rawTranscript,
-                cleanTranscript = cleanTranscript,
-                idea = knowledge.idea,
-                decision = knowledge.decision,
-                isCorrection = knowledge.isCorrection,
-                createdAt = now,
-                updatedAt = now
-            )
-            val noteId = noteDao.insert(note)
+            // Does this continue something already remembered here, or is it a
+            // new subject? Only memories under the same topic are considered:
+            // two things filed apart are, by construction, not the same thing.
+            val siblings = noteDao.getNotesForTopic(leaf.id).map {
+                MemoryMerger.Candidate(noteId = it.id, title = it.title)
+            }
+
+            val note = when (val decision = MemoryMerger.decide(knowledge.title, siblings)) {
+                is MemoryMerger.Decision.Continue -> continueMemory(
+                    noteId = decision.noteId,
+                    title = decision.title,
+                    knowledge = knowledge,
+                    cleanTranscript = cleanTranscript,
+                    source = source,
+                    sourceUrl = sourceUrl,
+                    now = now
+                )
+
+                MemoryMerger.Decision.StartNew -> startMemory(
+                    rootId = root.id,
+                    leafId = if (leaf.id != root.id) leaf.id else null,
+                    knowledge = knowledge,
+                    rawTranscript = rawTranscript,
+                    cleanTranscript = cleanTranscript,
+                    source = source,
+                    sourceUrl = sourceUrl,
+                    now = now
+                )
+            }
+            val noteId = note.id
 
             if (knowledge.tasks.isNotEmpty()) {
                 taskDao.insertAll(
@@ -247,9 +268,114 @@ class KnowledgeRepositoryImpl(
                 )
             }
 
-            note.copy(id = noteId)
+            note
         }
     }
+
+    /**
+     * Creates a memory and its first history entry.
+     */
+    private suspend fun startMemory(
+        rootId: Long,
+        leafId: Long?,
+        knowledge: ExtractedKnowledge,
+        rawTranscript: String,
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?,
+        now: Long
+    ): NoteEntity {
+        val note = NoteEntity(
+            topicId = rootId,
+            subtopicId = leafId,
+            title = knowledge.title,
+            summary = knowledge.summary,
+            rawTranscript = rawTranscript,
+            cleanTranscript = cleanTranscript,
+            idea = knowledge.idea,
+            decision = knowledge.decision,
+            isCorrection = knowledge.isCorrection,
+            createdAt = now,
+            updatedAt = now
+        )
+        val id = noteDao.insert(note)
+        memoryEntryDao.insert(
+            MemoryEntryEntity(
+                noteId = id,
+                summary = knowledge.summary,
+                transcript = cleanTranscript,
+                idea = knowledge.idea,
+                decision = knowledge.decision,
+                source = source,
+                sourceUrl = sourceUrl,
+                createdAt = now
+            )
+        )
+        return note.copy(id = id)
+    }
+
+    /**
+     * Appends to an existing memory.
+     *
+     * The note's summary becomes the newest thing said, because that is what the
+     * user means by "what do I know about this now". Everything previous stays
+     * intact as history — appending must never lose what was there before, which
+     * is the entire reason entries exist rather than an overwritten column.
+     *
+     * `idea` and `decision` are only overwritten when this entry actually
+     * carries one; a later factual update should not erase an idea recorded
+     * earlier.
+     */
+    private suspend fun continueMemory(
+        noteId: Long,
+        title: String,
+        knowledge: ExtractedKnowledge,
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?,
+        now: Long
+    ): NoteEntity {
+        val existing = noteDao.getById(noteId)
+            ?: error("MemoryMerger proposed note $noteId, which no longer exists")
+
+        val updated = existing.copy(
+            title = title,
+            summary = knowledge.summary,
+            idea = knowledge.idea ?: existing.idea,
+            decision = knowledge.decision ?: existing.decision,
+            updatedAt = now
+        )
+        noteDao.update(updated)
+
+        memoryEntryDao.insert(
+            MemoryEntryEntity(
+                noteId = noteId,
+                summary = knowledge.summary,
+                transcript = cleanTranscript,
+                idea = knowledge.idea,
+                decision = knowledge.decision,
+                source = source,
+                sourceUrl = sourceUrl,
+                createdAt = now
+            )
+        )
+        return updated
+    }
+
+    override suspend fun getEntriesForNote(noteId: Long): List<MemoryEntryEntity> =
+        withContext(Dispatchers.IO) { memoryEntryDao.getEntriesForNote(noteId) }
+
+    override suspend fun getTimelineForTopic(topicId: Long): List<TimelineEntry> =
+        withContext(Dispatchers.IO) {
+            val entries = memoryEntryDao.getTimelineForTopic(topicId)
+            val titles = mutableMapOf<Long, String>()
+            entries.map { entry ->
+                val title = titles.getOrPut(entry.noteId) {
+                    noteDao.getById(entry.noteId)?.title ?: "Untitled Memory"
+                }
+                TimelineEntry(entry = entry, noteTitle = title)
+            }
+        }
 
     override suspend fun moveNoteToTopic(noteId: Long, newTopicId: Long) = withContext(Dispatchers.IO) {
         noteDao.updateNoteTopic(noteId, newTopicId)
