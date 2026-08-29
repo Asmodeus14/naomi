@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naomi.app.presentation.components.NaomiEmptyState
+import com.naomi.app.presentation.components.NaomiRow
 import com.naomi.app.presentation.components.NaomiSectionHeader
 import com.naomi.app.presentation.components.SearchResultRow
 import com.naomi.app.presentation.components.rememberDueLabel
@@ -135,20 +136,12 @@ fun SearchScreen(
                                 NaomiSectionHeader(title = "TOPICS")
                             }
                             items(searchResult.topics, key = { "t_${it.id}" }) { topic ->
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onNavigateToTopic(topic.id) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                                ) {
+                                NaomiRow(onClick = { onNavigateToTopic(topic.id) }) {
                                     Text(
                                         text = topic.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(16.dp)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -173,30 +166,21 @@ fun SearchScreen(
                                 NaomiSectionHeader(title = "TASKS")
                             }
                             items(searchResult.tasks, key = { "task_${it.id}" }) { task ->
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onNavigateToNoteDetail(task.noteId) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
+                                NaomiRow(onClick = { onNavigateToNoteDetail(task.noteId) }) {
+                                    Text(
+                                        text = "□  ${task.title}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    val due = rememberDueLabel(task.deadline, task.dueAt)
+                                    if (due != null) {
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "□  ${task.title}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            text = due.text,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (due.isOverdue) MaterialTheme.colorScheme.error
+                                            else LocalNaomiAccents.current.idea
                                         )
-                                        val due = rememberDueLabel(task.deadline, task.dueAt)
-                                        if (due != null) {
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = due.text,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (due.isOverdue) MaterialTheme.colorScheme.error
-                                                else LocalNaomiAccents.current.idea
-                                            )
-                                        }
                                     }
                                 }
                             }

@@ -23,8 +23,8 @@ fun SearchResultRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    NaomiCard(modifier = modifier.fillMaxWidth(), onClick = onClick) {
-        Column(Modifier.padding(NaomiSpacing.md)) {
+    NaomiRow(modifier = modifier, onClick = onClick) {
+        Column {
             if (hit.topicPath.isNotBlank()) {
                 Text(
                     text = hit.topicPath.uppercase(),

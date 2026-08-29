@@ -136,18 +136,19 @@ fun TopicTreeNodeView(
             .fillMaxWidth()
             .padding(start = (level * 20).dp)
     ) {
-        Surface(
+        // A root topic used to be boxed and its children left bare, so depth was
+        // signalled twice — once by indentation, once by a border that only the
+        // top level had. Indentation and type weight already say it; the box was
+        // saying it louder.
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onTopicClick(node.topic.id) },
-            shape = RoundedCornerShape(12.dp),
-            color = if (level == 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.background,
-            border = if (level == 0) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)) else null
+                .clickable { onTopicClick(node.topic.id) }
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(vertical = NaomiSpacing.md - 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

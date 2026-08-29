@@ -1,10 +1,12 @@
 package com.naomi.app.presentation.note
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -14,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.ListAlt
@@ -28,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,7 +42,7 @@ import com.naomi.app.presentation.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NoteDetailScreen(
     noteId: Long,
@@ -174,9 +178,28 @@ fun NoteDetailScreen(
                 }
             }
         } else {
-            val dateFormatted = remember(currentDetail.note.createdAt) {
-                val sdf = SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault())
-                sdf.format(Date(currentDetail.note.createdAt))
+            // A memory that has been added to since it was first spoken is not
+            // honestly described by a single timestamp, so once there is a
+            // history the line reports the span instead of the first moment.
+            val hasHistory = currentDetail.entries.size > 1
+            val dateFormatted = remember(
+                currentDetail.note.createdAt,
+                currentDetail.note.updatedAt,
+                hasHistory
+            ) {
+                if (hasHistory) {
+                    val day = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                    "Started ${day.format(Date(currentDetail.note.createdAt))}" +
+                        " · Updated ${day.format(Date(currentDetail.note.updatedAt))}"
+                } else {
+                    SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault())
+                        .format(Date(currentDetail.note.createdAt))
+                }
+            }
+
+            val history = remember(currentDetail.entries) {
+                val day = SimpleDateFormat("MMM d", Locale.getDefault())
+                currentDetail.entries.map { day.format(Date(it.createdAt)) to it.summary }
             }
 
             LazyColumn(
@@ -237,12 +260,53 @@ fun NoteDetailScreen(
                     )
                 }
 
+                // Where a shared memory came from. A link Naomi kept but never
+                // showed would be a memory the user cannot actually return to.
+                // Opening it hands the URL to the browser; Naomi itself holds no
+                // INTERNET permission and fetches nothing.
+                val sourceUrl = currentDetail.entries.lastOrNull { !it.sourceUrl.isNullOrBlank() }?.sourceUrl
+                if (sourceUrl != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl))
+                                        )
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(NaomiSpacing.sm)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = sourceUrl,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
                 // Indented Structural Section (Idea, Task, Related) with left guide line
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
+                            // Without an intrinsic height the guide line below
+                            // measures against the LazyColumn's unbounded
+                            // constraint, resolves to zero and never draws.
+                            .height(IntrinsicSize.Min)
                     ) {
                         // Vertical Guide Line
                         Box(
@@ -258,6 +322,57 @@ fun NoteDetailScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
+                            // HISTORY Section — the thing that makes this a
+                            // memory rather than a note. Shown only once there
+                            // is more than one entry: for a memory spoken once,
+                            // the summary above already *is* the whole history,
+                            // and repeating it back would be noise.
+                            if (hasHistory) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.History,
+                                            contentDescription = "History",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "HISTORY",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            letterSpacing = 1.2.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        for ((date, text) in history) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text(
+                                                    text = date,
+                                                    style = NaomiMonoLabel,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        .copy(alpha = 0.7f),
+                                                    modifier = Modifier.width(52.dp)
+                                                )
+                                                Text(
+                                                    text = text,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    lineHeight = 22.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             // IDEA Section
                             if (!currentDetail.note.idea.isNullOrBlank()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -423,9 +538,14 @@ fun NoteDetailScreen(
                                         )
                                     }
 
-                                    Row(
+                                    // A Row cannot wrap, so a third related topic
+                                    // was squeezed into a sliver one character
+                                    // wide rather than moving to the next line.
+                                    // The repository returns up to six of these.
+                                    FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         for (related in currentDetail.relatedTopics) {
                                             NaomiPill(

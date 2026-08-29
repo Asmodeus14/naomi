@@ -2,6 +2,7 @@ package com.naomi.app.presentation.home
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -37,6 +38,7 @@ fun HomeScreen(
     onNavigateToTopics: () -> Unit,
     onNavigateToAmbient: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onNavigateToAsk: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToNoteDetail: (Long) -> Unit
 ) {
@@ -52,6 +54,23 @@ fun HomeScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) viewModel.startCapture() }
+
+    // Asked for only once something is actually waiting to be delivered. A
+    // reminder cannot be shown without this on Android 13+, and it was never
+    // requested, so reminders were silently dropped.
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Declining is a real answer; the task is still saved and visible. */ }
+
+    LaunchedEffect(Unit) {
+        viewModel.reminderScheduled.collect {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@collect
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     fun requestCapture() {
         val granted = ContextCompat.checkSelfPermission(
@@ -165,6 +184,19 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.clickable { showTextInput = true }
+                        )
+
+                        // The other half of the promise. Speaking puts things in;
+                        // this is how they come back out, and it needs to be
+                        // visible from the first screen or nobody finds it.
+                        Spacer(Modifier.height(NaomiSpacing.lg))
+                        Text(
+                            text = "Ask what you've already told me →",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable(onClick = onNavigateToAsk)
+                                .padding(vertical = NaomiSpacing.xs)
                         )
                     }
                     Spacer(Modifier.height(NaomiSpacing.md + NaomiSpacing.xs))

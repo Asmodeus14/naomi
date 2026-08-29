@@ -16,6 +16,8 @@ import com.naomi.app.domain.repository.KnowledgeRepository
 import com.naomi.app.domain.repository.RecordingRepository
 import com.naomi.app.domain.repository.SettingsRepository
 import com.naomi.app.domain.usecases.*
+import com.naomi.app.reminder.ReminderReceiver
+import com.naomi.app.reminder.ReminderScheduler
 
 class NaomiApp : Application() {
 
@@ -46,6 +48,10 @@ class NaomiApp : Application() {
     lateinit var processAmbientChunkUseCase: ProcessAmbientChunkUseCase
         private set
     lateinit var searchMemoriesUseCase: SearchMemoriesUseCase
+        private set
+    lateinit var askNaomiUseCase: AskNaomiUseCase
+        private set
+    lateinit var syncRemindersUseCase: SyncRemindersUseCase
         private set
     lateinit var exportMarkdownUseCase: ExportMarkdownUseCase
         private set
@@ -79,6 +85,9 @@ class NaomiApp : Application() {
         processThoughtUseCase = ProcessThoughtUseCase(knowledgeRepository, intelligenceProviders)
         processAmbientChunkUseCase = ProcessAmbientChunkUseCase(knowledgeRepository)
         searchMemoriesUseCase = SearchMemoriesUseCase(knowledgeRepository)
+        askNaomiUseCase = AskNaomiUseCase(knowledgeRepository)
+        syncRemindersUseCase = SyncRemindersUseCase(knowledgeRepository, ReminderScheduler(this))
+        ReminderReceiver.ensureChannel(this)
         exportMarkdownUseCase = ExportMarkdownUseCase(knowledgeRepository)
         cleanStorageUseCase = CleanStorageUseCase(recordingRepository)
 

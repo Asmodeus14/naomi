@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What makes the default build provably offline.
+
+  :web-impl is not a dependency of this flavour, so nothing of ours asks for
+  network access. This file exists because something else might: ML Kit's GenAI
+  client pulls in com.google.android.datatransport:transport-backend-cct —
+  Google's telemetry uploader — which declares INTERNET and ACCESS_NETWORK_STATE.
+  Manifest merging added both to the APK, so a build that read as "no network"
+  in source shipped with full network access. The absence has to be asserted,
+  not assumed.
+
+  Gemini Nano is unaffected: it reaches AICore over Binder IPC, and the model is
+  downloaded by the system service, never by this process. Anything in that
+  transitive dependency which did want a socket now cannot open one.
+
+  `checkOfflineReleaseHasNoNetworkPermission` fails the build if either
+  permission survives. To confirm against a built APK:
+    aapt2 dump permissions app/build/outputs/apk/offline/release/*.apk
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+
+</manifest>

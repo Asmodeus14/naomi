@@ -21,6 +21,30 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    /**
+     * Whether this build can reach the internet at all.
+     *
+     * The two are separate APKs rather than one APK with a switch, because a
+     * runtime toggle can only ever be a promise about code paths. Keeping the
+     * networked module out of the default build makes the claim a fact the OS
+     * enforces and `aapt2 dump permissions` can confirm.
+     *
+     * `offline` is the default and is what gets published.
+     */
+    flavorDimensions += "reach"
+
+    productFlavors {
+        create("offline") {
+            dimension = "reach"
+            isDefault = true
+        }
+        create("connected") {
+            dimension = "reach"
+            applicationIdSuffix = ".connected"
+            versionNameSuffix = "-connected"
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -88,6 +112,11 @@ val forbiddenPermissions = listOf(
 )
 
 androidComponents.onVariants { variant ->
+    // Only the offline flavour makes this claim. The connected flavour exists
+    // precisely to have network access, and asserting otherwise there would be
+    // a check that can never pass — which is how checks get deleted.
+    if (variant.flavorName != "offline") return@onVariants
+
     val checkTask = tasks.register("check${variant.name.replaceFirstChar { it.uppercase() }}HasNoNetworkPermission") {
         group = "verification"
         description = "Asserts the merged ${variant.name} manifest grants no network access."
@@ -103,14 +132,20 @@ androidComponents.onVariants { variant ->
             if (found.isNotEmpty()) {
                 throw GradleException(
                     """
-                    Naomi's merged manifest grants network access: ${found.joinToString()}
+                    The offline build's merged manifest grants network access: ${found.joinToString()}
 
-                    A dependency has reintroduced it. Either remove that dependency or add
-                    a matching `tools:node="remove"` entry to app/src/main/AndroidManifest.xml,
-                    then confirm with:
-                      aapt2 dump permissions <apk>
+                    A dependency has reintroduced it — usually one that bundles a
+                    telemetry uploader. Remove the dependency, or add a matching
+                    `tools:node="remove"` entry to app/src/offline/AndroidManifest.xml,
+                    then confirm against the built APK:
+                      aapt2 dump permissions app/build/outputs/apk/offline/release/*.apk
 
-                    Do not weaken this check. The privacy claim in README.md depends on it.
+                    (A networked module leaking into this flavour is caught by
+                    checkWebModuleBoundary instead: src/offline strips these two
+                    permissions unconditionally, so this check cannot see that case.)
+
+                    Do not weaken this check, and do not "fix" it by deleting the flavour
+                    filter above. The privacy claim in README.md depends on it.
                     """.trimIndent()
                 )
             }
@@ -121,7 +156,75 @@ androidComponents.onVariants { variant ->
     tasks.named("check").configure { dependsOn(checkTask) }
 }
 
+/**
+ * Fails the build if the web layer can see the user's memories, or if the
+ * networked half has leaked into the offline flavour.
+ *
+ * The permission check above proves the offline APK cannot open a socket. This
+ * one proves the other half of §4: that the code which *can* open sockets has
+ * no way to reach a transcript. Both are needed. A networked module that could
+ * import Room would satisfy the first check and still be able to upload a
+ * memory the moment someone wrote the call.
+ */
+tasks.register("checkWebModuleBoundary") {
+    group = "verification"
+    description = "Asserts the web modules cannot reach app data, and are absent from the offline build."
+
+    doLast {
+        // 1. The offline build must not contain the networked implementation.
+        val offlineClasspath = configurations.getByName("offlineDebugRuntimeClasspath")
+            .incoming.resolutionResult.allComponents.map { it.id.displayName }
+
+        if (offlineClasspath.any { it.contains("web-impl") }) {
+            throw GradleException(
+                """
+                :web-impl is on the offline build's classpath.
+
+                The offline flavour is the published one and must have no networked
+                code in it at all. Move the dependency back to `connectedImplementation`.
+                """.trimIndent()
+            )
+        }
+
+        // 2. Neither web module may see app data. If either could import Room or
+        //    :app, the module boundary would be decoration.
+        val forbidden = listOf("androidx.room", "project :app", "sqlite")
+        for ((path, configuration) in listOf(
+            ":web-api" to "runtimeClasspath",
+            ":web-impl" to "debugRuntimeClasspath"
+        )) {
+            val module = project(path)
+            val seen = module.configurations.findByName(configuration)
+                ?.incoming?.resolutionResult?.allComponents
+                ?.map { it.id.displayName }
+                .orEmpty()
+
+            val violations = seen.filter { component ->
+                forbidden.any { component.contains(it, ignoreCase = true) }
+            }
+            if (violations.isNotEmpty()) {
+                throw GradleException(
+                    """
+                    $path can reach app data: ${violations.joinToString()}
+
+                    The web layer is only allowed to know about URLs and page text. Giving
+                    it a type for a memory is what would make "private context never meets
+                    public context" a promise instead of a fact.
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+}
+
+tasks.named("check").configure { dependsOn("checkWebModuleBoundary") }
+
 dependencies {
+    // The interface only. Plain Kotlin, no manifest, no network — safe in every
+    // build. The implementation is added for `connected` alone, below.
+    implementation(project(":web-api"))
+    "connectedImplementation"(project(":web-impl"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

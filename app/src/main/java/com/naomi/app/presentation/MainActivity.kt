@@ -75,6 +75,8 @@ class MainActivity : ComponentActivity() {
     private fun handleWidgetIntent(intent: Intent?) {
         if (intent == null) return
 
+        if (handleSharedText(intent)) return
+
         if (intent.getBooleanExtra("TRIGGER_CAPTURE", false) ||
             intent.action == "com.naomi.app.ACTION_QUICK_CAPTURE"
         ) {
@@ -90,6 +92,33 @@ class MainActivity : ComponentActivity() {
         if (targetScreen == "ambient") {
             pendingNavigationRoute = Screen.Ambient.route
         }
+    }
+
+    /**
+     * Text sent from another app's Share Sheet.
+     *
+     * The subject is prepended when there is one, because a shared article
+     * arrives as a bare URL plus a title, and the title is the only part that
+     * carries any meaning to file it by.
+     *
+     * Consumed so a share cannot also be read as a widget tap, and cleared off
+     * the intent so returning to the app later does not save the same thing
+     * again — `getIntent()` keeps handing back the launching intent forever.
+     */
+    private fun handleSharedText(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_SEND) return false
+        if (intent.type != "text/plain") return false
+
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
+        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)?.trim().orEmpty()
+
+        intent.action = null
+        intent.removeExtra(Intent.EXTRA_TEXT)
+        intent.removeExtra(Intent.EXTRA_SUBJECT)
+
+        if (text.isBlank() && subject.isBlank()) return false
+        homeViewModel.processSharedText(subject, text)
+        return true
     }
 }
 

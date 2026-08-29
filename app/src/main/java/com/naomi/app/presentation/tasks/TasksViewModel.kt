@@ -1,6 +1,7 @@
 ﻿package com.naomi.app.presentation.tasks
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.naomi.app.NaomiApp
@@ -22,6 +23,17 @@ class TasksViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleTask(taskId: Long, currentCompleted: Boolean) {
         viewModelScope.launch {
             repository.setTaskCompleted(taskId, !currentCompleted)
+            // Being reminded to do something already ticked off is the fastest
+            // way to teach someone to ignore an app's notifications.
+            try {
+                app.syncRemindersUseCase()
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not update reminders after toggling $taskId", e)
+            }
         }
+    }
+
+    private companion object {
+        const val TAG = "TasksViewModel"
     }
 }

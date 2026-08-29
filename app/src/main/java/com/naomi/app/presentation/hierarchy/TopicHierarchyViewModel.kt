@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.naomi.app.NaomiApp
 import com.naomi.app.data.database.entities.NoteEntity
 import com.naomi.app.data.database.entities.TopicEntity
+import com.naomi.app.domain.model.TimelineEntry
 import com.naomi.app.domain.model.TopicNode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +34,9 @@ sealed interface TopicDetailUiState {
         val topic: TopicEntity,
         val summary: String,
         val notes: List<NoteEntity>,
-        val subtopics: List<TopicEntity>
+        val subtopics: List<TopicEntity>,
+        /** Everything said under this topic and below it, newest first. */
+        val timeline: List<TimelineEntry> = emptyList()
     ) : TopicDetailUiState
 
     data object NotFound : TopicDetailUiState
@@ -77,7 +80,8 @@ class TopicHierarchyViewModel(application: Application) : AndroidViewModel(appli
                         topic = topic,
                         summary = repository.getTopicSummary(topicId),
                         notes = repository.getNotesForTopic(topicId),
-                        subtopics = repository.getSubtopics(topicId)
+                        subtopics = repository.getSubtopics(topicId),
+                        timeline = repository.getTimelineForTopic(topicId)
                     )
                 }
             } catch (e: Exception) {

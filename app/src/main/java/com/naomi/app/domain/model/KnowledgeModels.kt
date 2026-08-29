@@ -68,11 +68,58 @@ data class NoteDetail(
     val topicPath: String = topic.name,
     val tasks: List<TaskEntity> = emptyList(),
     val entities: List<EntityRefEntity> = emptyList(),
+    /** Everything said about this memory, oldest first. */
+    val entries: List<MemoryEntryEntity> = emptyList(),
     /** Topics reached from this memory's named things — computed, not stored. */
     val relatedTopics: List<TopicEntity> = emptyList(),
     /** Other memories that mention the same things, most overlap first. */
     val relatedNotes: List<NoteEntity> = emptyList()
 )
+
+/**
+ * One moment in a topic's history, carrying the memory it belongs to so the
+ * timeline can say what was being talked about, not just what was said.
+ */
+data class TimelineEntry(
+    val entry: MemoryEntryEntity,
+    val noteTitle: String
+)
+
+/**
+ * A memory that answers a question, with the moments in it that did.
+ */
+data class RecalledMemory(
+    val note: NoteEntity,
+    /** Breadcrumb such as "Nyx · Graphics". */
+    val topicPath: String,
+    /** The entries containing what was asked about, newest first. */
+    val matches: List<MemoryEntryEntity>
+)
+
+/**
+ * What Naomi can say in reply to a question.
+ *
+ * There is deliberately no "generated answer" case. Every variant either states
+ * a fact about the store ("nothing here about X") or hands back records the user
+ * created themselves. See [com.naomi.app.domain.usecases.AskNaomiUseCase].
+ */
+sealed interface Answer {
+    /** Nothing has been asked yet. */
+    data object Idle : Answer
+
+    /** The question had no subject left once the words around it came off. */
+    data object Unanswerable : Answer
+
+    /** Understood, but there is genuinely nothing stored about it. */
+    data class Nothing(val subject: String) : Answer
+
+    data class Found(
+        val subject: String,
+        val intent: com.naomi.app.ai.intelligence.QuestionParser.Intent,
+        val memories: List<RecalledMemory>,
+        val tasks: List<TaskEntity>
+    ) : Answer
+}
 
 /**
  * A search hit carrying enough context to be recognisable without opening it —

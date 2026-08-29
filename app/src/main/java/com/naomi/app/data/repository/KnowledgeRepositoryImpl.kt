@@ -1,6 +1,7 @@
 package com.naomi.app.data.repository
 
 import androidx.room.withTransaction
+import com.naomi.app.ai.intelligence.MemoryMerger
 import com.naomi.app.ai.intelligence.TopicMatcher
 import com.naomi.app.ai.intelligence.TopicResolver
 import com.naomi.app.data.database.NaomiDatabase
@@ -18,6 +19,7 @@ class KnowledgeRepositoryImpl(
     private val topicDao = db.topicDao()
     private val noteDao = db.noteDao()
     private val taskDao = db.taskDao()
+    private val memoryEntryDao = db.memoryEntryDao()
     private val entityRefDao = db.entityRefDao()
     private val relationshipDao = db.topicRelationshipDao()
 
@@ -73,7 +75,17 @@ class KnowledgeRepositoryImpl(
      * legitimately each have a "Notes" or "Ideas" child, and collapsing those
      * into one node would merge unrelated parts of the tree.
      */
-    private suspend fun resolveTopic(name: String, parentId: Long?): TopicEntity {
+    private suspend fun resolveTopic(name: String, parentId: Long?): TopicEntity =
+        resolveTopicTracked(name, parentId).first
+
+    /**
+     * As [resolveTopic], but also reports whether the topic had to be created.
+     *
+     * The caller needs to know because a topic minted while filing a memory that
+     * then turns out to continue an existing one is left behind with nothing in
+     * it, cluttering the tree with names the user never navigates to.
+     */
+    private suspend fun resolveTopicTracked(name: String, parentId: Long?): Pair<TopicEntity, Boolean> {
         val siblings = if (parentId == null) topicDao.getRootTopics() else topicDao.getSubtopics(parentId)
         val matched = TopicMatcher.findBestMatch(name, siblings)
         val now = System.currentTimeMillis()
@@ -81,7 +93,7 @@ class KnowledgeRepositoryImpl(
         if (matched != null) {
             val touched = matched.copy(updatedAt = now)
             topicDao.update(touched)
-            return touched
+            return touched to false
         }
 
         val parent = parentId?.let { topicDao.getById(it) }
@@ -93,7 +105,7 @@ class KnowledgeRepositoryImpl(
             createdAt = now,
             updatedAt = now
         )
-        return newTopic.copy(id = topicDao.insert(newTopic))
+        return newTopic.copy(id = topicDao.insert(newTopic)) to true
     }
 
     override suspend fun updateTopic(topic: TopicEntity) = withContext(Dispatchers.IO) {
@@ -137,6 +149,7 @@ class KnowledgeRepositoryImpl(
             topicPath = topicPathFor(note),
             tasks = taskDao.getTasksForNote(noteId),
             entities = entityRefDao.getEntitiesForNote(noteId),
+            entries = memoryEntryDao.getEntriesForNote(noteId),
             relatedTopics = relatedTopics,
             relatedNotes = relatedNotes
         )
@@ -170,7 +183,9 @@ class KnowledgeRepositoryImpl(
     override suspend fun saveNote(
         knowledge: ExtractedKnowledge,
         rawTranscript: String,
-        cleanTranscript: String
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?
     ): NoteEntity = withContext(Dispatchers.IO) {
         // One memory is one unit of work. Without a transaction a failure part
         // way through leaves a note with no tasks, or topics with no note.
@@ -186,13 +201,15 @@ class KnowledgeRepositoryImpl(
             var parentId: Long? = null
             var rootTopic: TopicEntity? = null
             var leafTopic: TopicEntity? = null
+            val mintedTopicIds = mutableListOf<Long>()
 
             val usablePath = proposedPath
                 .filter { TopicResolver.isUsableTopicName(it) }
                 .ifEmpty { listOf(TopicResolver.INBOX) }
 
             for (segment in usablePath) {
-                val topic = resolveTopic(segment, parentId)
+                val (topic, wasCreated) = resolveTopicTracked(segment, parentId)
+                if (wasCreated) mintedTopicIds += topic.id
                 if (rootTopic == null) rootTopic = topic
                 leafTopic = topic
                 parentId = topic.id
@@ -202,20 +219,54 @@ class KnowledgeRepositoryImpl(
             val leaf = leafTopic!!
             val now = System.currentTimeMillis()
 
-            val note = NoteEntity(
-                topicId = root.id,
-                subtopicId = if (leaf.id != root.id) leaf.id else null,
-                title = knowledge.title,
-                summary = knowledge.summary,
-                rawTranscript = rawTranscript,
-                cleanTranscript = cleanTranscript,
-                idea = knowledge.idea,
-                decision = knowledge.decision,
-                isCorrection = knowledge.isCorrection,
-                createdAt = now,
-                updatedAt = now
-            )
-            val noteId = noteDao.insert(note)
+            // Does this continue something already remembered here, or is it a
+            // new subject?
+            //
+            // Candidates come from the whole root branch, not just the leaf.
+            // Scoping this to the leaf looked safer and was not: saying more
+            // about a subject often names something new, which mints a subtopic,
+            // which is empty, which means the memory cannot see the one it is
+            // continuing and duplicates it under a different parent. Observed on
+            // device — "ring buffer overflow happens at sixty frames" created a
+            // "Sixty Frames" subtopic and a second memory also called "Ring
+            // Buffer". The 0.88 threshold, not the topic boundary, is what keeps
+            // distinct subjects apart.
+            val siblings = noteDao.getNotesForTopic(root.id).map {
+                MemoryMerger.Candidate(noteId = it.id, title = it.title)
+            }
+
+            val note = when (val decision = MemoryMerger.decide(knowledge.title, siblings)) {
+                is MemoryMerger.Decision.Continue -> continueMemory(
+                    noteId = decision.noteId,
+                    title = decision.title,
+                    knowledge = knowledge,
+                    cleanTranscript = cleanTranscript,
+                    source = source,
+                    sourceUrl = sourceUrl,
+                    now = now
+                ).also {
+                    // The memory went somewhere that already existed, so any
+                    // topic minted a moment ago while resolving a path we did
+                    // not end up using is now an empty name in the user's tree.
+                    // Deepest first, so a parent becomes empty before it is
+                    // checked. Only ever removes what this call created.
+                    for (topicId in mintedTopicIds.asReversed()) {
+                        if (topicDao.isEmpty(topicId)) topicDao.deleteById(topicId)
+                    }
+                }
+
+                MemoryMerger.Decision.StartNew -> startMemory(
+                    rootId = root.id,
+                    leafId = if (leaf.id != root.id) leaf.id else null,
+                    knowledge = knowledge,
+                    rawTranscript = rawTranscript,
+                    cleanTranscript = cleanTranscript,
+                    source = source,
+                    sourceUrl = sourceUrl,
+                    now = now
+                )
+            }
+            val noteId = note.id
 
             if (knowledge.tasks.isNotEmpty()) {
                 taskDao.insertAll(
@@ -247,9 +298,114 @@ class KnowledgeRepositoryImpl(
                 )
             }
 
-            note.copy(id = noteId)
+            note
         }
     }
+
+    /**
+     * Creates a memory and its first history entry.
+     */
+    private suspend fun startMemory(
+        rootId: Long,
+        leafId: Long?,
+        knowledge: ExtractedKnowledge,
+        rawTranscript: String,
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?,
+        now: Long
+    ): NoteEntity {
+        val note = NoteEntity(
+            topicId = rootId,
+            subtopicId = leafId,
+            title = knowledge.title,
+            summary = knowledge.summary,
+            rawTranscript = rawTranscript,
+            cleanTranscript = cleanTranscript,
+            idea = knowledge.idea,
+            decision = knowledge.decision,
+            isCorrection = knowledge.isCorrection,
+            createdAt = now,
+            updatedAt = now
+        )
+        val id = noteDao.insert(note)
+        memoryEntryDao.insert(
+            MemoryEntryEntity(
+                noteId = id,
+                summary = knowledge.summary,
+                transcript = cleanTranscript,
+                idea = knowledge.idea,
+                decision = knowledge.decision,
+                source = source,
+                sourceUrl = sourceUrl,
+                createdAt = now
+            )
+        )
+        return note.copy(id = id)
+    }
+
+    /**
+     * Appends to an existing memory.
+     *
+     * The note's summary becomes the newest thing said, because that is what the
+     * user means by "what do I know about this now". Everything previous stays
+     * intact as history — appending must never lose what was there before, which
+     * is the entire reason entries exist rather than an overwritten column.
+     *
+     * `idea` and `decision` are only overwritten when this entry actually
+     * carries one; a later factual update should not erase an idea recorded
+     * earlier.
+     */
+    private suspend fun continueMemory(
+        noteId: Long,
+        title: String,
+        knowledge: ExtractedKnowledge,
+        cleanTranscript: String,
+        source: String,
+        sourceUrl: String?,
+        now: Long
+    ): NoteEntity {
+        val existing = noteDao.getById(noteId)
+            ?: error("MemoryMerger proposed note $noteId, which no longer exists")
+
+        val updated = existing.copy(
+            title = title,
+            summary = knowledge.summary,
+            idea = knowledge.idea ?: existing.idea,
+            decision = knowledge.decision ?: existing.decision,
+            updatedAt = now
+        )
+        noteDao.update(updated)
+
+        memoryEntryDao.insert(
+            MemoryEntryEntity(
+                noteId = noteId,
+                summary = knowledge.summary,
+                transcript = cleanTranscript,
+                idea = knowledge.idea,
+                decision = knowledge.decision,
+                source = source,
+                sourceUrl = sourceUrl,
+                createdAt = now
+            )
+        )
+        return updated
+    }
+
+    override suspend fun getEntriesForNote(noteId: Long): List<MemoryEntryEntity> =
+        withContext(Dispatchers.IO) { memoryEntryDao.getEntriesForNote(noteId) }
+
+    override suspend fun getTimelineForTopic(topicId: Long): List<TimelineEntry> =
+        withContext(Dispatchers.IO) {
+            val entries = memoryEntryDao.getTimelineForTopic(topicId)
+            val titles = mutableMapOf<Long, String>()
+            entries.map { entry ->
+                val title = titles.getOrPut(entry.noteId) {
+                    noteDao.getById(entry.noteId)?.title ?: "Untitled Memory"
+                }
+                TimelineEntry(entry = entry, noteTitle = title)
+            }
+        }
 
     override suspend fun moveNoteToTopic(noteId: Long, newTopicId: Long) = withContext(Dispatchers.IO) {
         noteDao.updateNoteTopic(noteId, newTopicId)
@@ -262,6 +418,9 @@ class KnowledgeRepositoryImpl(
     override fun getTasksForNoteFlow(noteId: Long): Flow<List<TaskEntity>> = taskDao.getTasksForNoteFlow(noteId)
 
     override fun getPendingTasksFlow(): Flow<List<TaskEntity>> = taskDao.getPendingTasksFlow()
+
+    override suspend fun getPendingTasks(): List<TaskEntity> =
+        withContext(Dispatchers.IO) { taskDao.getPendingTasks() }
 
     override fun getAllTasksFlow(): Flow<List<TaskEntity>> = taskDao.getAllTasksFlow()
 
@@ -311,7 +470,9 @@ class KnowledgeRepositoryImpl(
             SearchHit(
                 note = note,
                 topicPath = topicPathFor(note),
-                snippet = buildSnippet(note, raw)
+                // The match may live in the memory's history rather than on the
+                // note itself, so the snippet has to be able to look there too.
+                snippet = buildSnippet(note, memoryEntryDao.getEntriesForNote(note.id), raw)
             )
         }
 
@@ -358,8 +519,17 @@ class KnowledgeRepositoryImpl(
      * Pulls the words around the match so a result is recognisable without
      * being opened. Falls back to the summary when the hit was on the title.
      */
-    private fun buildSnippet(note: NoteEntity, query: String, radius: Int = 60): String {
-        val haystacks = listOf(note.summary, note.cleanTranscript, note.rawTranscript)
+    private fun buildSnippet(
+        note: NoteEntity,
+        entries: List<MemoryEntryEntity>,
+        query: String,
+        radius: Int = 60
+    ): String {
+        // The note's own fields first, so a memory that still matches on what it
+        // is *now* is described by that rather than by an older entry. Newest
+        // entries next, for the same reason.
+        val haystacks = listOf(note.summary, note.cleanTranscript, note.rawTranscript) +
+            entries.asReversed().flatMap { listOf(it.summary, it.transcript) }
         val source = haystacks.firstOrNull { it.contains(query, ignoreCase = true) }
             ?: return note.summary.take(radius * 2).trim()
 

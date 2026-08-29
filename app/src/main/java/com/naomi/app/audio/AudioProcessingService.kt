@@ -179,7 +179,9 @@ class AudioProcessingService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // A launcher icon here is drawn as a silhouette of its alpha channel,
+            // which for a full-bleed icon is a grey square.
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

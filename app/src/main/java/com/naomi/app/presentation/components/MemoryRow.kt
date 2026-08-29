@@ -37,17 +37,17 @@ fun MemoryRow(
     val accents = LocalNaomiAccents.current
     val timestamp = remember(note.createdAt) { memoryDateFormat.format(Date(note.createdAt)) }
 
-    NaomiCard(modifier = modifier.fillMaxWidth(), onClick = onClick) {
+    NaomiRow(modifier = modifier, onClick = onClick) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(NaomiSpacing.md),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
+            // The dot carries the work the card's left edge used to do: it marks
+            // where a memory starts, so the list still has a spine to scan down.
             Box(
                 modifier = Modifier
-                    .padding(top = 6.dp, end = NaomiSpacing.sm + NaomiSpacing.xs)
-                    .size(NaomiSpacing.sm)
+                    .padding(top = 7.dp, end = NaomiSpacing.sm + NaomiSpacing.xs)
+                    .size(NaomiSpacing.sm - 1.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
             )

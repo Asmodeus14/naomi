@@ -33,17 +33,27 @@ jobs:
       # RemoteViews elements that would have crashed every home-screen widget at
       # inflate time; without it in CI those shipped clean through a green build.
       - name: Lint
-        run: ./gradlew lintDebug --no-daemon
+        run: ./gradlew lintOfflineDebug --no-daemon
 
-      # Naomi's central claim is that it cannot send your memories anywhere.
-      # That is only true if the *merged* manifest has no INTERNET permission,
-      # and a transitive dependency (ML Kit → transport-backend-cct) declares
-      # one. This fails the build if it ever comes back.
-      - name: Assert no network permission
-        run: ./gradlew checkDebugHasNoNetworkPermission checkReleaseHasNoNetworkPermission --no-daemon
+      # The two halves of the privacy boundary, both enforced here.
+      #
+      # The first proves the published APK cannot open a socket: the merged
+      # manifest must have no INTERNET permission, and a transitive dependency
+      # (ML Kit → transport-backend-cct) declares one, so this is not theoretical.
+      #
+      # The second proves the code that *can* open sockets has no way to reach a
+      # memory — :web-api and :web-impl must not see Room or :app, and :web-impl
+      # must stay out of the offline build entirely. Without it, a networked
+      # module could pass the permission check and still upload a transcript the
+      # moment someone wrote the call.
+      - name: Assert offline build has no network permission
+        run: ./gradlew checkOfflineDebugHasNoNetworkPermission checkOfflineReleaseHasNoNetworkPermission --no-daemon
+
+      - name: Assert the web layer cannot see memories
+        run: ./gradlew checkWebModuleBoundary --no-daemon
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: ./gradlew testOfflineDebugUnitTest --no-daemon
 
       # Reports are only useful when something broke, and that is exactly when
       # the log alone does not say enough.
@@ -52,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: app/build/reports/tests/testDebugUnitTest
+          path: app/build/reports/tests/testOfflineDebugUnitTest
           if-no-files-found: ignore
 
       - name: Upload lint report
@@ -60,17 +70,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
-          path: app/build/reports/lint-results-debug.html
+          path: app/build/reports/lint-results-offlineDebug.html
           if-no-files-found: ignore
 
-      # Release is built too, not just debug: minification and resource shrinking
-      # only run here, so a bad ProGuard rule is invisible until this step.
-      - name: Build debug and release
-        run: ./gradlew assembleDebug assembleRelease --no-daemon
+      # Both flavours are built. The connected one is not published by default,
+      # but a flavour nobody compiles is a flavour that quietly stops compiling.
+      # Release is built too: minification and resource shrinking only run there,
+      # so a bad ProGuard rule is invisible until this step.
+      - name: Build both flavours, debug and release
+        run: ./gradlew assembleOfflineDebug assembleOfflineRelease assembleConnectedDebug --no-daemon
 
-      - name: Upload debug APK
+      - name: Upload offline debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: naomi-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: naomi-offline-debug-apk
+          path: app/build/outputs/apk/offline/debug/app-offline-debug.apk
           if-no-files-found: error
