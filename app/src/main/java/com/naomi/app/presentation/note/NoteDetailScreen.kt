@@ -263,6 +263,10 @@ fun NoteDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
+                            // Without an intrinsic height the guide line below
+                            // measures against the LazyColumn's unbounded
+                            // constraint, resolves to zero and never draws.
+                            .height(IntrinsicSize.Min)
                     ) {
                         // Vertical Guide Line
                         Box(

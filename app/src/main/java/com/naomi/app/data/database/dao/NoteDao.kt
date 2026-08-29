@@ -77,15 +77,25 @@ interface NoteDao {
      * [query] must already have `%`, `_` and `\` escaped by the caller — the
      * ESCAPE clause here is what makes those characters literal rather than
      * wildcards that match every row in the table.
+     *
+     * The join over `memory_entries` is not an optimisation, it is the point.
+     * A note's own `cleanTranscript` is whatever was said the first time; once
+     * a memory has been added to, everything said since lives only in its
+     * entries. Searching the note alone would make the middle of a memory's
+     * history unfindable — merging would silently cost the user recall, which
+     * is the one thing this app exists to provide.
      */
     @Query(
         """
-        SELECT * FROM notes
-        WHERE title LIKE '%' || :query || '%' ESCAPE '\'
-           OR summary LIKE '%' || :query || '%' ESCAPE '\'
-           OR cleanTranscript LIKE '%' || :query || '%' ESCAPE '\'
-           OR rawTranscript LIKE '%' || :query || '%' ESCAPE '\'
-        ORDER BY createdAt DESC
+        SELECT DISTINCT n.* FROM notes n
+        LEFT JOIN memory_entries e ON e.noteId = n.id
+        WHERE n.title LIKE '%' || :query || '%' ESCAPE '\'
+           OR n.summary LIKE '%' || :query || '%' ESCAPE '\'
+           OR n.cleanTranscript LIKE '%' || :query || '%' ESCAPE '\'
+           OR n.rawTranscript LIKE '%' || :query || '%' ESCAPE '\'
+           OR e.summary LIKE '%' || :query || '%' ESCAPE '\'
+           OR e.transcript LIKE '%' || :query || '%' ESCAPE '\'
+        ORDER BY n.updatedAt DESC
         LIMIT :limit
         """
     )

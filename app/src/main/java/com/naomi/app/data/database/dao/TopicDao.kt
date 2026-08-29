@@ -19,6 +19,21 @@ interface TopicDao {
     @Query("SELECT * FROM topics WHERE id = :id")
     suspend fun getById(id: Long): TopicEntity?
 
+    @Query("DELETE FROM topics WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    /**
+     * True when nothing at all hangs off this topic — no memories filed under
+     * it either way, and no children.
+     */
+    @Query(
+        """
+        SELECT NOT EXISTS(SELECT 1 FROM notes WHERE topicId = :id OR subtopicId = :id)
+           AND NOT EXISTS(SELECT 1 FROM topics WHERE parentId = :id)
+        """
+    )
+    suspend fun isEmpty(id: Long): Boolean
+
     @Query("SELECT * FROM topics WHERE normalizedName = :normalizedName LIMIT 1")
     suspend fun getByNormalizedName(normalizedName: String): TopicEntity?
 

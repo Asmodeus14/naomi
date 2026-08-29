@@ -75,7 +75,17 @@ class KnowledgeRepositoryImpl(
      * legitimately each have a "Notes" or "Ideas" child, and collapsing those
      * into one node would merge unrelated parts of the tree.
      */
-    private suspend fun resolveTopic(name: String, parentId: Long?): TopicEntity {
+    private suspend fun resolveTopic(name: String, parentId: Long?): TopicEntity =
+        resolveTopicTracked(name, parentId).first
+
+    /**
+     * As [resolveTopic], but also reports whether the topic had to be created.
+     *
+     * The caller needs to know because a topic minted while filing a memory that
+     * then turns out to continue an existing one is left behind with nothing in
+     * it, cluttering the tree with names the user never navigates to.
+     */
+    private suspend fun resolveTopicTracked(name: String, parentId: Long?): Pair<TopicEntity, Boolean> {
         val siblings = if (parentId == null) topicDao.getRootTopics() else topicDao.getSubtopics(parentId)
         val matched = TopicMatcher.findBestMatch(name, siblings)
         val now = System.currentTimeMillis()
@@ -83,7 +93,7 @@ class KnowledgeRepositoryImpl(
         if (matched != null) {
             val touched = matched.copy(updatedAt = now)
             topicDao.update(touched)
-            return touched
+            return touched to false
         }
 
         val parent = parentId?.let { topicDao.getById(it) }
@@ -95,7 +105,7 @@ class KnowledgeRepositoryImpl(
             createdAt = now,
             updatedAt = now
         )
-        return newTopic.copy(id = topicDao.insert(newTopic))
+        return newTopic.copy(id = topicDao.insert(newTopic)) to true
     }
 
     override suspend fun updateTopic(topic: TopicEntity) = withContext(Dispatchers.IO) {
@@ -191,13 +201,15 @@ class KnowledgeRepositoryImpl(
             var parentId: Long? = null
             var rootTopic: TopicEntity? = null
             var leafTopic: TopicEntity? = null
+            val mintedTopicIds = mutableListOf<Long>()
 
             val usablePath = proposedPath
                 .filter { TopicResolver.isUsableTopicName(it) }
                 .ifEmpty { listOf(TopicResolver.INBOX) }
 
             for (segment in usablePath) {
-                val topic = resolveTopic(segment, parentId)
+                val (topic, wasCreated) = resolveTopicTracked(segment, parentId)
+                if (wasCreated) mintedTopicIds += topic.id
                 if (rootTopic == null) rootTopic = topic
                 leafTopic = topic
                 parentId = topic.id
@@ -208,9 +220,18 @@ class KnowledgeRepositoryImpl(
             val now = System.currentTimeMillis()
 
             // Does this continue something already remembered here, or is it a
-            // new subject? Only memories under the same topic are considered:
-            // two things filed apart are, by construction, not the same thing.
-            val siblings = noteDao.getNotesForTopic(leaf.id).map {
+            // new subject?
+            //
+            // Candidates come from the whole root branch, not just the leaf.
+            // Scoping this to the leaf looked safer and was not: saying more
+            // about a subject often names something new, which mints a subtopic,
+            // which is empty, which means the memory cannot see the one it is
+            // continuing and duplicates it under a different parent. Observed on
+            // device — "ring buffer overflow happens at sixty frames" created a
+            // "Sixty Frames" subtopic and a second memory also called "Ring
+            // Buffer". The 0.88 threshold, not the topic boundary, is what keeps
+            // distinct subjects apart.
+            val siblings = noteDao.getNotesForTopic(root.id).map {
                 MemoryMerger.Candidate(noteId = it.id, title = it.title)
             }
 
@@ -223,7 +244,16 @@ class KnowledgeRepositoryImpl(
                     source = source,
                     sourceUrl = sourceUrl,
                     now = now
-                )
+                ).also {
+                    // The memory went somewhere that already existed, so any
+                    // topic minted a moment ago while resolving a path we did
+                    // not end up using is now an empty name in the user's tree.
+                    // Deepest first, so a parent becomes empty before it is
+                    // checked. Only ever removes what this call created.
+                    for (topicId in mintedTopicIds.asReversed()) {
+                        if (topicDao.isEmpty(topicId)) topicDao.deleteById(topicId)
+                    }
+                }
 
                 MemoryMerger.Decision.StartNew -> startMemory(
                     rootId = root.id,
@@ -437,7 +467,9 @@ class KnowledgeRepositoryImpl(
             SearchHit(
                 note = note,
                 topicPath = topicPathFor(note),
-                snippet = buildSnippet(note, raw)
+                // The match may live in the memory's history rather than on the
+                // note itself, so the snippet has to be able to look there too.
+                snippet = buildSnippet(note, memoryEntryDao.getEntriesForNote(note.id), raw)
             )
         }
 
@@ -484,8 +516,17 @@ class KnowledgeRepositoryImpl(
      * Pulls the words around the match so a result is recognisable without
      * being opened. Falls back to the summary when the hit was on the title.
      */
-    private fun buildSnippet(note: NoteEntity, query: String, radius: Int = 60): String {
-        val haystacks = listOf(note.summary, note.cleanTranscript, note.rawTranscript)
+    private fun buildSnippet(
+        note: NoteEntity,
+        entries: List<MemoryEntryEntity>,
+        query: String,
+        radius: Int = 60
+    ): String {
+        // The note's own fields first, so a memory that still matches on what it
+        // is *now* is described by that rather than by an older entry. Newest
+        // entries next, for the same reason.
+        val haystacks = listOf(note.summary, note.cleanTranscript, note.rawTranscript) +
+            entries.asReversed().flatMap { listOf(it.summary, it.transcript) }
         val source = haystacks.firstOrNull { it.contains(query, ignoreCase = true) }
             ?: return note.summary.take(radius * 2).trim()
 

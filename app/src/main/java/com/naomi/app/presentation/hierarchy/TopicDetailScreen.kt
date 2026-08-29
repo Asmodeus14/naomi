@@ -236,7 +236,10 @@ fun TopicDetailScreen(
                             style = NaomiMonoLabel,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row {
+                        // Intrinsic height so the guide line has something to
+                        // measure against; inside a LazyColumn the incoming max
+                        // height is unbounded and fillMaxHeight collapses to 0.
+                        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                             Box(
                                 modifier = Modifier
                                     .width(1.dp)
@@ -250,19 +253,28 @@ fun TopicDetailScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(NaomiSpacing.md)
                             ) {
-                                for (moment in day.entries) {
+                                day.entries.forEachIndexed { index, moment ->
+                                    // The memory's name is there to say which
+                                    // thing changed. Repeating it down a run of
+                                    // entries about the same one says nothing,
+                                    // so it appears when the subject changes.
+                                    val showTitle = index == 0 ||
+                                        day.entries[index - 1].noteTitle != moment.noteTitle
+
                                     Column(
                                         modifier = Modifier.clickable {
                                             onNavigateToNoteDetail(moment.entry.noteId)
                                         },
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        Text(
-                                            text = moment.noteTitle,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        if (showTitle) {
+                                            Text(
+                                                text = moment.noteTitle,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                         Text(
                                             text = moment.entry.summary,
                                             style = MaterialTheme.typography.bodyMedium,
