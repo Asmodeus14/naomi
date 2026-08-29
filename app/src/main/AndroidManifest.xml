@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      There is deliberately no INTERNET permission. Naomi cannot send a transcript
+      anywhere, and that is enforced by the OS rather than promised in a document.
+      Speech recognition and understanding both run on-device.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required by AudioProcessingService.triggerHaptic; without it every
+         haptic failed silently behind a catch block. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      Removing these is the single most important line in this file.
+
+      ML Kit's GenAI client pulls in com.google.android.datatransport:
+      transport-backend-cct — Google's telemetry upload backend — and that
+      library declares INTERNET and ACCESS_NETWORK_STATE. Manifest merging
+      adds them to the APK, so a build that reads as "no network" in this
+      file shipped with full network access. The absence has to be asserted,
+      not assumed.
+
+      Nano inference is unaffected: it reaches AICore over Binder IPC, and
+      the model is downloaded by the system service, never by this process.
+      Anything in that transitive dependency which did want a socket now
+      cannot open one.
+
+      If this ever needs revisiting, the check is:
+        grep "permission.INTERNET" \
+          app/build/intermediates/merged_manifest/release/**/AndroidManifest.xml
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+
+    <!--
+      allowBackup is false because Android's auto-backup would copy the
+      transcript database to the user's Google Drive, which would contradict
+      the on-device promise the rest of the app keeps.
+    -->
+    <application
+        android:name=".NaomiApp"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".presentation.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.naomi.app.ACTION_QUICK_CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Foreground Audio Service -->
+        <service
+            android:name=".audio.AudioProcessingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Home Screen AppWidget -->
+        <receiver
+            android:name=".widget.NaomiWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.naomi.app.widget.ACTION_WIDGET_TAP" />
+                <action android:name="com.naomi.app.widget.ACTION_STATE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/naomi_widget_info" />
+        </receiver>
+
+    </application>
+
+</manifest>

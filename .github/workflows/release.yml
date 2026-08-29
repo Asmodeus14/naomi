@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Assert no network permission
+        run: ./gradlew checkReleaseHasNoNetworkPermission --no-daemon
+
+      - name: Lint
+        run: ./gradlew lintRelease --no-daemon
+
+      - name: Unit tests
+        run: ./gradlew testReleaseUnitTest --no-daemon
+
+      # This previously built and published the *debug* APK. A debuggable build
+      # lets anyone with adb read the on-device memory database through `run-as`,
+      # which is the opposite of what this app promises. Release only.
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      # The release build is unsigned: there is no keystore in this repository
+      # and there should not be one. The artifact is published as a draft so a
+      # human signs it before anyone can install it.
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release-unsigned.apk
+          generate_release_notes: true
+          draft: true
+          prerelease: false
+          body: |
+            **This APK is unsigned.** Sign it with your own key before installing:
+
+            ```
+            apksigner sign --ks <your-keystore> app-release-unsigned.apk
+            ```

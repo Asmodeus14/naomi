@@ -1,0 +1,33 @@
+# Gradle / build output
+.gradle/
+build/
+app/build/
+.cxx/
+.externalNativeBuild/
+.kotlin/
+captures/
+
+# Build artifacts. A 19MB APK was previously committed at the repository root;
+# releases are published by CI, never carried in the tree.
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing material. Nothing here should ever exist in this repository.
+*.jks
+*.keystore
+keystore.properties
+secrets.xml
+google-services.json
+
+# Machine-local configuration
+local.properties
+*.iml
+.idea/
+*.log
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db

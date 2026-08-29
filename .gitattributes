@@ -1,0 +1,16 @@
+# Normalise line endings so a checkout on Windows and one on Linux produce the
+# same content. Without this, CI on ubuntu-latest and a local Windows build can
+# disagree about files that nobody edited.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF or cmd.exe misparses them.
+*.bat text eol=crlf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.webp binary
+*.jar binary
+*.apk binary
+*.keystore binary
+gradle/wrapper/gradle-wrapper.jar binary

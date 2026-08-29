@@ -1,0 +1,30 @@
+<resources>
+    <!--
+      The widget cannot use the Compose palette, so these are the one place a
+      Naomi colour is written twice. Every value here mirrors a named colour in
+      theme/Color.kt; if one changes, change both.
+
+      Six unused legacy colours (naomi_black, naomi_white, naomi_muted and
+      friends) were removed from this file. They disagreed with the Compose
+      palette — naomi_black was #0D0E11 against the theme's #111318 — and
+      nothing read them, so they served only to make "what colour is Naomi"
+      ambiguous.
+    -->
+
+    <!-- Semantic accents, shared with NaomiAccents in Compose. -->
+    <color name="naomi_listening_red">#E05252</color>
+    <color name="naomi_success_green">#4EBA87</color>
+    <color name="naomi_amber">#F5A623</color>
+
+    <!-- Widget surface tokens (light). Mirrors StitchLight* in Color.kt. -->
+    <color name="widget_background">#FBF9FA</color>
+    <color name="widget_surface">#F5F3F4</color>
+    <color name="widget_surface_elevated">#EFEDEE</color>
+    <color name="widget_stroke">#C4C7CC</color>
+    <!-- The slate accent, so the widget orb is recognisably the app's orb. -->
+    <color name="widget_orb_idle">#4E5E6D</color>
+    <color name="widget_orb_halo">#1A4E5E6D</color>
+    <color name="widget_text_primary">#1B1C1D</color>
+    <color name="widget_text_secondary">#43474C</color>
+    <color name="widget_text_tertiary">#74777C</color>
+</resources>

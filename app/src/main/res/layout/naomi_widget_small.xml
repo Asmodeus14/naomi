@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_small_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:contentDescription="@string/widget_name">
+
+    <!-- Subtle Orb Container with halo depth -->
+    <FrameLayout
+        android:id="@+id/widget_small_orb_container"
+        android:layout_width="48dp"
+        android:layout_height="48dp">
+
+        <!-- FrameLayout, not View: plain View is not on the RemoteViews
+             allow-list and throws at inflate time inside the launcher. -->
+        <FrameLayout
+            android:id="@+id/widget_small_halo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/widget_orb_outer_circle" />
+
+        <TextView
+            android:id="@+id/widget_small_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:includeFontPadding="false"
+            android:text="●"
+            android:textColor="@color/widget_orb_idle"
+            android:textSize="26sp" />
+    </FrameLayout>
+
+    <!-- Understated Title -->
+    <TextView
+        android:id="@+id/widget_small_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.04"
+        android:text="Naomi"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="14sp" />
+
+    <!-- Subtitle / State Indicator -->
+    <TextView
+        android:id="@+id/widget_small_subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:fontFamily="sans-serif"
+        android:text="Tap to speak"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="11sp" />
+
+</LinearLayout>

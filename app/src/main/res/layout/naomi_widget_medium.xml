@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_medium_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:baselineAligned="false">
+
+    <!-- Left: Capture Interaction Zone -->
+    <LinearLayout
+        android:id="@+id/widget_medium_capture_zone"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingEnd="12dp">
+
+        <FrameLayout
+            android:id="@+id/widget_medium_orb_container"
+            android:layout_width="44dp"
+            android:layout_height="44dp">
+
+            <!-- FrameLayout, not View: plain View is not on the RemoteViews
+                 allow-list and throws at inflate time inside the launcher. -->
+            <FrameLayout
+                android:id="@+id/widget_medium_halo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/widget_orb_outer_circle" />
+
+            <TextView
+                android:id="@+id/widget_medium_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:includeFontPadding="false"
+                android:text="●"
+                android:textColor="@color/widget_orb_idle"
+                android:textSize="24sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_medium_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.03"
+                android:text="Naomi"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/widget_medium_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="sans-serif"
+                android:text="Tap to remember"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Subtle Lineage Divider. FrameLayout, not View: plain View is not on the
+         RemoteViews allow-list and throws at inflate time inside the launcher. -->
+    <FrameLayout
+        android:layout_width="1dp"
+        android:layout_height="36dp"
+        android:background="@color/widget_stroke" />
+
+    <!-- Right: Last Remembered Thought -->
+    <LinearLayout
+        android:id="@+id/widget_medium_note_container"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.4"
+        android:layout_marginStart="12dp"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+        <!--
+          This was wrapped in a <Row> element. Row is a Compose/Glance concept,
+          not an Android View class, so LayoutInflater threw ClassNotFoundException
+          at runtime in the launcher's process. AAPT2 does not validate view class
+          names, so it compiled clean and only failed once placed. The wrapper held
+          a single TextView and served no layout purpose, so it is simply gone.
+        -->
+        <TextView
+            android:id="@+id/widget_medium_note_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.08"
+            android:text="LAST REMEMBERED"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/widget_medium_note_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:maxLines="2"
+            android:text="Nyx — Ring Buffer Synchronization"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/widget_medium_note_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif"
+            android:text="10:15 AM"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Naomi</string>
+    <string name="tagline">You talk. Naomi remembers.</string>
+    <string name="tap_to_speak">Tap to speak</string>
+    <string name="listening">Listening</string>
+    <string name="remembering">Remembering...</string>
+    <string name="saved">Saved</string>
+    <string name="ambient_mode">Ambient Mode</string>
+    <string name="widget_name">Naomi Quick Capture</string>
+</resources>

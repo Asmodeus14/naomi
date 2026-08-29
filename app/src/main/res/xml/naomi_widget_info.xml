@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  targetCellHeight is 2, not 1: a single cell is roughly 40-50dp, which
+  contradicts the 80dp minHeight below and would place the widget beneath every
+  size breakpoint the provider defines.
+
+  previewLayout points at the small layout rather than medium so the widget
+  picker renders the simplest variant.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="80dp"
+    android:minResizeWidth="90dp"
+    android:minResizeHeight="60dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="400dp"
+    android:maxResizeHeight="400dp"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/naomi_widget_small"
+    android:previewLayout="@layout/naomi_widget_small"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_name" />

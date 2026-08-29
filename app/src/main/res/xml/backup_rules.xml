@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing is eligible for backup. Naomi's database holds voice transcripts, and
+  copying those off the device would defeat the point of processing them on it.
+  Kept as an explicit empty rule set rather than omitted, so the intent is
+  visible to anyone auditing the app.
+-->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="." />
+</full-backup-content>

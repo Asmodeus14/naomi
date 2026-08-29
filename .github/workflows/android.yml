@@ -1,0 +1,76 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, lint & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Lint runs first and is a hard gate. It is the check that found three
+      # RemoteViews elements that would have crashed every home-screen widget at
+      # inflate time; without it in CI those shipped clean through a green build.
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon
+
+      # Naomi's central claim is that it cannot send your memories anywhere.
+      # That is only true if the *merged* manifest has no INTERNET permission,
+      # and a transitive dependency (ML Kit → transport-backend-cct) declares
+      # one. This fails the build if it ever comes back.
+      - name: Assert no network permission
+        run: ./gradlew checkDebugHasNoNetworkPermission checkReleaseHasNoNetworkPermission --no-daemon
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      # Reports are only useful when something broke, and that is exactly when
+      # the log alone does not say enough.
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+      # Release is built too, not just debug: minification and resource shrinking
+      # only run here, so a bad ProGuard rule is invisible until this step.
+      - name: Build debug and release
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: naomi-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
