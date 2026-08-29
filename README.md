@@ -15,39 +15,54 @@ filed, connected memory — without leaving your phone.
 
 ## What it does
 
-Most note apps give you a list. Naomi gives you a structure, built out of your own
-words as you go.
+Most note apps give you a list. Naomi gives you a subject that grows.
 
 Say this:
 
-> "The ring buffer in Nyx is stable now. Synchronisation between the producer and
-> consumer still drops frames. I need to profile the fence waits tomorrow."
+> "The greenhouse tomatoes are flowering early."
 
-Naomi produces:
+Naomi titles it **Greenhouse Tomatoes** and files it. Then, days later, you say:
 
-| | |
-|---|---|
-| **Title** | Ring Buffer |
-| **Filed under** | `Ring Buffer` |
-| **Task** | Profile the fence waits — due tomorrow, as a real date |
+> "I fixed the greenhouse tomatoes with crushed eggshell."
 
-Then say this, a day later:
-
-> "The ring buffer uses too much memory under load. I think a slab allocator would
-> fix it."
-
-It does **not** create a second "Ring Buffer" topic. It recognises the subject you
-already have, files the memory there, nests `Slab Allocator` beneath it, and pulls
-out the idea you flagged with "I think".
+It does **not** make a second note. It recognises the thing you are already
+talking about, adds this to that memory's history, and updates what the memory
+currently says. Say a third thing and it does the same. One subject, dated, in the
+order you said it:
 
 <div align="center">
-<img src="docs/screenshots/topics.png" width="260" alt="Knowledge tree" />
-<img src="docs/screenshots/memory.png" width="260" alt="A single memory with its topic path and extracted task" />
-<img src="docs/screenshots/tasks.png" width="260" alt="Tasks bucketed by resolved due date" />
+<img src="docs/screenshots/memory.png" width="260" alt="One memory with three dated entries under a HISTORY heading" />
+<img src="docs/screenshots/timeline.png" width="260" alt="A topic's timeline: everything said under it and everything beneath it" />
+<img src="docs/screenshots/topics.png" width="260" alt="The knowledge tree, with subtopics nested under the subject they came from" />
 </div>
 
-That grouping is the whole product. A note app that files every sentence under a
-new heading has not organised anything.
+Later, ask for it back in the words you would actually use:
+
+> "What did I say about the greenhouse tomatoes?"
+
+<div align="center">
+<img src="docs/screenshots/ask.png" width="260" alt="Ask Naomi answering a spoken question from local memories" />
+<img src="docs/screenshots/tasks.png" width="260" alt="Tasks bucketed by resolved due date" />
+<img src="docs/screenshots/search.png" width="260" alt="Search finding a word that appears only inside a memory's history" />
+</div>
+
+Nothing in that answer is generated. Every line is either a fixed phrase or text
+you recorded yourself — see [Ask Naomi](#ask-naomi) below.
+
+That accumulation is the whole product. A note app that files every sentence as a
+new item has not remembered anything; it has taken dictation.
+
+### Ask Naomi
+
+Recall runs entirely against the local store, and it never writes prose on your
+behalf. The one sentence Naomi says in its own voice reports counts — *"You've
+said 4 things about "greenhouse tomatoes", across 2 memories"* — so it has no way
+to be wrong about content. There is deliberately no generated-answer case in the
+`Answer` type.
+
+An assistant that invents a plausible memory is worse than one that says it has
+nothing, because you cannot tell the two apart. What Naomi hands back being what
+you actually said is the entire promise.
 
 ---
 
@@ -193,25 +208,43 @@ duplicate you can fix in one tap. The threshold reflects that asymmetry.
 
 ## Screenshots
 
-| Knowledge tree | Search | Settings |
+| Home | A memory and its history | A topic's timeline |
 |---|---|---|
-| <img src="docs/screenshots/topics.png" width="220" /> | <img src="docs/screenshots/search.png" width="220" /> | <img src="docs/screenshots/settings.png" width="220" /> |
+| <img src="docs/screenshots/home.png" width="220" alt="Home screen" /> | <img src="docs/screenshots/memory.png" width="220" alt="Memory detail with history" /> | <img src="docs/screenshots/timeline.png" width="220" alt="Topic timeline" /> |
 
-| Dark | Ambient mode | Widget |
+| Ask Naomi | Knowledge tree | Tasks |
 |---|---|---|
-| <img src="docs/screenshots/dark-mode.png" width="220" /> | <img src="docs/screenshots/ambient.png" width="220" /> | <img src="docs/screenshots/widget.png" width="220" /> |
+| <img src="docs/screenshots/ask.png" width="220" alt="Ask Naomi" /> | <img src="docs/screenshots/topics.png" width="220" alt="Knowledge tree" /> | <img src="docs/screenshots/tasks.png" width="220" alt="Tasks" /> |
 
-All screenshots are from the running app on a `medium_phone` emulator, not from
-mockups.
+| Search | Settings & Privacy Center | Ambient mode |
+|---|---|---|
+| <img src="docs/screenshots/search.png" width="220" alt="Search" /> | <img src="docs/screenshots/settings.png" width="220" alt="Settings" /> | <img src="docs/screenshots/ambient.png" width="220" alt="Ambient mode" /> |
+
+| Dark | Widget on the home screen |
+|---|---|
+| <img src="docs/screenshots/dark-mode.png" width="220" alt="Dark theme" /> | <img src="docs/screenshots/widget.png" width="220" alt="The widget pinned to the launcher" /> |
+
+All of these are the running app on a `medium_phone` emulator, captured from one
+session against the same memories — which is why the same greenhouse tomatoes
+appear across them. None are mockups.
+
+That is worth stating because it was not always true: earlier versions of this
+file showed a `widget.png` containing no widget and a `dark-mode.png` containing
+no dark mode, both the same stock launcher screenshot.
 
 ---
 
 ## Architecture
 
+Three Gradle modules. The split is the privacy boundary, not organisation for its
+own sake — see [what the networked code is allowed to know](#the-other-half-what-the-networked-code-is-allowed-to-know).
+
 ```
-app/src/main/java/com/naomi/app/
+app/                      The application. No network capability in the
+│                         offline flavour, which is the one that ships.
 ├── ai/intelligence/      Lexicon, KeyphraseExtractor, TopicResolver,
-│                         TopicMatcher, TaskExtractor, TemporalParser
+│                         TopicMatcher, MemoryMerger, TaskExtractor,
+│                         TemporalParser, QuestionParser, SharedTextParser
 ├── audio/                SpeechRecognizer wrapper + ambient foreground service
 ├── data/
 │   ├── database/         Room entities, DAOs, migrations, exported schemas
@@ -220,16 +253,29 @@ app/src/main/java/com/naomi/app/
 │   ├── intelligence/     IntelligenceProvider + Nano and heuristic providers
 │   ├── model/            Domain types
 │   ├── repository/       Repository interfaces
-│   └── usecases/         ProcessThoughtUseCase, SearchMemoriesUseCase, …
+│   └── usecases/         ProcessThought, AskNaomi, SyncReminders, …
 ├── presentation/         Compose UI, one package per screen
-│   ├── components/       NaomiOrb, NaomiCard, MemoryRow, empty states
+│   ├── components/       NaomiOrb, NaomiRow, MemoryRow, empty states
 │   └── theme/            Colour, type, spacing, shape, motion
+├── reminder/             AlarmManager scheduling + the one notification
+├── web/                  Flavour-specific: which WebReader, if any, exists
 └── widget/               RemoteViews home-screen widget (three sizes)
+
+web-api/                  Plain Kotlin. No Android plugin, so it cannot add a
+                          permission; no dependency on :app, so it has no type
+                          for a memory. A URL in, a page out.
+
+web-impl/                 The only module that can open a socket, and the only
+                          manifest that asks for INTERNET. Present in the
+                          `connected` flavour alone.
 ```
 
 Kotlin, Jetpack Compose, Material 3, Room, Coroutines/Flow, Navigation Compose.
-Around 9,700 lines across 82 files. No dependency injection framework —
-construction happens once in `NaomiApp`, which is enough at this size.
+Around 11,900 lines across 97 files, plus 650 lines of tests. No dependency
+injection framework — construction happens once in `NaomiApp`, which is enough at
+this size. No HTTP client: the module allowed to make requests uses
+`HttpURLConnection`, because a networking dependency is exactly the kind of thing
+that arrives with a telemetry uploader attached.
 
 **Capture is a `Flow<ProcessingStage>`.** Stages are emitted where the work
 actually happens. There are no artificial delays: an earlier version showed three
@@ -272,22 +318,36 @@ in the launcher process at inflate time.
 there should not be one.
 
 What works and is verified on a device: capture by voice or text, title and topic
-extraction, topic reuse across sessions, subtopic nesting, task extraction with
-resolved dates, search with context, the knowledge tree, Markdown export,
+extraction, topic reuse across sessions, subtopic nesting, **memories that
+continue instead of duplicating, with a dated history**, **topic timelines**,
+**Ask Naomi**, **sharing text and links in from other apps**, **reminders on the
+system clock that survive a reboot**, task extraction with resolved dates, search
+that reaches inside a memory's history, the knowledge tree, Markdown export,
 persisted System/Light/Dark theming, and the home-screen widget in three sizes.
 
 Known limitations, stated plainly:
 
-- Topic names come from your own words. A first memory about tomato seedlings
-  creates a topic called "Tomato Seedlings", not "Gardening" — Naomi will not
-  invent a category you did not say. Depth appears as you keep talking.
-- Two memories genuinely about the same thing can share a title. The summary in
-  the list is what distinguishes them.
+- Topic and memory names come from your own words. A first memory about tomato
+  seedlings creates a topic called "Tomato Seedlings", not "Gardening" — Naomi
+  will not invent a category you did not say. Depth appears as you keep talking.
+- **Whether a new thought continues a memory depends on what it gets titled.**
+  Saying "the greenhouse tomatoes have blossom end rot" is titled *Blossom End
+  Rot*, which is far enough from *Greenhouse Tomatoes* that it becomes its own
+  memory under the same topic. That threshold is deliberately strict: wrongly
+  merging two subjects buries one inside the other's history where you will never
+  find it, while wrongly splitting leaves two entries you can see.
+- Reminders are **inexact**. Measured on device, Android gives them a one-hour
+  window. The 09:00 in "remind me tomorrow" was chosen by the parser, not by you,
+  so asking for the restricted exact-alarm permission would take something in
+  exchange for precision nobody specified. See `ReminderScheduler`.
 - Inter is specified by the design but not bundled; the app uses the platform
   sans-serif. The scale, weights and tracking are what carry the design, and
   those survive the substitution. See `theme/Type.kt`.
-- Instrumented UI tests are not written yet; coverage is unit tests over the
-  intelligence layer plus manual device verification.
+- Instrumented UI tests are not written yet; coverage is 56 unit tests over the
+  intelligence layer plus manual device verification. That gap is real: several
+  bugs this project has shipped and fixed — a crash when a subtopic id happened
+  to match a note id, reminders silently dropped because a permission was never
+  requested — were found by driving the app, not by the suite.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed and [ROADMAP.md](ROADMAP.md) for
 what is next.

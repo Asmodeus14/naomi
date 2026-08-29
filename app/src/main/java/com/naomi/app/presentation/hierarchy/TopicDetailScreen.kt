@@ -184,7 +184,13 @@ fun TopicDetailScreen(
                     NaomiSectionHeader(title = "SUBTOPICS")
                 }
 
-                items(subtopics, key = { it.id }) { sub ->
+                // Keys are namespaced because this one LazyColumn lists rows from
+                // three different tables. Topic 2 and note 2 are unrelated rows
+                // with the same id, and Compose throws when a key repeats — so
+                // opening any topic whose subtopic id matched one of its note ids
+                // crashed the screen outright. Raw ids are only unique within
+                // their own table.
+                items(subtopics, key = { "sub-${it.id}" }) { sub ->
                     NaomiRow(onClick = { onNavigateToSubtopic(sub.id) }) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -214,7 +220,7 @@ fun TopicDetailScreen(
                     NaomiSectionHeader(title = "TIMELINE")
                 }
 
-                items(timelineDays, key = { it.label }) { day ->
+                items(timelineDays, key = { "day-${it.label}" }) { day ->
                     Column(verticalArrangement = Arrangement.spacedBy(NaomiSpacing.sm)) {
                         Text(
                             text = day.label,
@@ -288,7 +294,7 @@ fun TopicDetailScreen(
                     )
                 }
             } else {
-                items(notes, key = { it.id }) { note ->
+                items(notes, key = { "note-${it.id}" }) { note ->
                     MemoryRow(
                         note = note,
                         onClick = { onNavigateToNoteDetail(note.id) }
