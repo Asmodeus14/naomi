@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Living memory.** Saying more about something you have already told Naomi
+  continues that memory rather than creating a second one, and the memory keeps
+  a dated history of everything said about it. Topics grow a timeline.
+- **Ask Naomi.** Natural-language recall — "what did I say about the ring
+  buffer" — answered entirely from the local store. Nothing is generated: every
+  line returned is a fixed phrase or text you recorded yourself.
+- **Share Sheet.** Text and links shared from other apps become memories. The
+  link is kept and shown, and deliberately never reaches the understanding layer.
+- **Reminders.** Deadlines heard in speech go on the system clock and survive
+  reboot. Ticking a task off cancels its alarm. Alarms are inexact by choice —
+  see `ReminderScheduler` for why, and for what that costs.
+- **Two build flavours.** `offline` is the default and the only one published; it
+  declares no `INTERNET` permission. `connected` adds a web-reading layer as a
+  separate APK you build yourself. The choice is made at install time rather than
+  in Settings, because a runtime toggle can only ever be a promise about which
+  code paths run.
+- `checkWebModuleBoundary`, which fails the build if the networked modules can
+  reach Room or `:app`, or if the networked module leaks into the offline build.
+
+### Fixed
+- **Merging silently cost recall.** A memory kept the transcript of whatever was
+  said first and the summary of whatever was said last; everything in between
+  lived only in its history, which search never looked at. Saying three things
+  about one subject made the middle one unfindable — in an app whose only job is
+  recall.
+- Merge candidates were scoped to the resolved leaf topic, so saying more about a
+  subject could mint an empty subtopic, fail to see the memory it was continuing,
+  and duplicate it under a different parent.
+- `POST_NOTIFICATIONS` was declared but never requested, so on Android 13+ it sat
+  denied and every reminder would have been dropped silently. The feature would
+  have shipped looking present and doing nothing.
+- The notification icon was the full-colour launcher icon. Android draws small
+  icons as a silhouette of their alpha channel, so it rendered as a grey blob.
+- The vertical guide line used `fillMaxHeight()` inside a `LazyColumn` item,
+  where the incoming height constraint is unbounded, so it resolved to zero and
+  had never drawn.
+
 ---
 
 ## [0.1.0] - 2026-08-29
@@ -54,7 +92,7 @@ state is a changelog that hides them.
   added both to the APK. They are now stripped with `tools:node="remove"`, and
   `checkReleaseHasNoNetworkPermission` fails the build if either returns. Verified
   against the built APK with `aapt2 dump permissions`, not just against the source
-  manifest.
+  manifest. (Renamed to `checkOfflineRelease…` after 0.1.0, when flavours arrived.)
 - The medium widget layout contained `<Row>`, a Compose tag with no Android
   view behind it, and three layouts used `<View>`, which RemoteViews does not
   permit. All four crashed at inflate time in the launcher.

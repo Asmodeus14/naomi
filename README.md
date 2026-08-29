@@ -57,8 +57,8 @@ Naomi's privacy claim is not a policy — it is a property of the build, and you
 check it yourself in under a minute:
 
 ```bash
-./gradlew assembleRelease
-aapt2 dump permissions app/build/outputs/apk/release/app-release-unsigned.apk
+./gradlew assembleOfflineRelease
+aapt2 dump permissions app/build/outputs/apk/offline/release/app-offline-release-unsigned.apk
 ```
 
 That prints the complete permission list of the shipped APK:
@@ -67,13 +67,35 @@ That prints the complete permission list of the shipped APK:
 |---|---|
 | `RECORD_AUDIO` | Speech capture |
 | `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MICROPHONE` | Ambient mode keeps recording when the app is backgrounded |
-| `POST_NOTIFICATIONS` | The notification that foreground services legally require |
+| `POST_NOTIFICATIONS` | Reminders you asked for out loud, and the notification that foreground services legally require |
 | `VIBRATE` | Capture start/stop haptics |
+| `RECEIVE_BOOT_COMPLETED` | Alarms are dropped on reboot; without this a reminder set for Friday is lost by a restart on Wednesday |
 | `com.google.android.apps.aicore.service.BIND_SERVICE` | Binder IPC to the system AICore service for Gemini Nano. Not a network permission — it binds to a local system service. |
 
 **There is no `INTERNET` permission.** Without it the app cannot open a socket at
 all. Telemetry is not merely absent; it is not expressible. There is no analytics
 SDK, no crash reporter, no account, and no server.
+
+### The two builds
+
+This is the `offline` flavour, which is the default and the only one published.
+
+There is a second flavour, `connected`, which adds a web-reading layer for
+looking up public pages. It is a **separate APK** that you have to build
+yourself — not a setting inside this one. That is deliberate: a runtime switch
+can only ever be a promise about which code paths run, whereas a build that does
+not contain the networking module cannot reach the network whatever its code
+does. Making the choice at install time is what lets the paragraph above stay
+absolute rather than becoming "unless a setting is on".
+
+If you build `connected`, the honest description changes: that APK declares
+`INTERNET`, and you are trusting the module boundary described below rather than
+the operating system. Its permissions are worth checking too:
+
+```bash
+./gradlew assembleConnectedDebug
+aapt2 dump permissions app/build/outputs/apk/connected/debug/app-connected-debug.apk
+```
 
 ### Why that took work, and why it is checked automatically
 
@@ -91,9 +113,31 @@ time. Nano still works: it reaches AICore over Binder IPC, and the model is
 downloaded by the system service, never by this process.
 
 Because a single dependency bump could quietly undo that, the assertion is a build
-gate. `./gradlew check` runs `checkReleaseHasNoNetworkPermission`, which parses the
-merged manifest and fails the build if either permission reappears. CI runs it on
-every push. The check is verified to fail when it should — not just to pass today.
+gate. `./gradlew check` runs `checkOfflineReleaseHasNoNetworkPermission`, which
+parses the merged manifest and fails the build if either permission reappears. CI
+runs it on every push. The check is verified to fail when it should — not just to
+pass today.
+
+### The other half: what the networked code is allowed to know
+
+A permission check proves the offline APK cannot open a socket. It says nothing
+about the `connected` build, where a socket is the point. So the boundary there
+is structural instead.
+
+The web layer is two modules. `:web-api` is plain Kotlin with no Android plugin,
+no manifest and no dependencies — its entire vocabulary is a URL in and a page
+out. `:web-impl` holds the only code in this repository that can open a socket,
+and the only manifest that asks for `INTERNET`. Neither depends on `:app`, so
+neither has a *type* for a memory, a transcript or a topic. Code that tried to
+send one would not compile.
+
+`checkWebModuleBoundary` enforces both facts on every build: that `:web-api` and
+`:web-impl` cannot reach Room or `:app`, and that `:web-impl` is absent from the
+offline build entirely. Like the permission gate, it is verified to fail when
+violated.
+
+This is why fetching a page is a per-link action on something you shared in, and
+not a search over your memories. Naomi has no mechanism to combine the two.
 
 **Specifically:**
 
@@ -201,11 +245,16 @@ Requires JDK 17 and the Android SDK (compileSdk 36).
 ```bash
 git clone <this-repo>
 cd naomi
-./gradlew installDebug        # build and install on a connected device
-./gradlew testDebugUnitTest   # unit tests
-./gradlew lintDebug           # lint — a build gate, not advisory
-./gradlew assembleRelease     # minified release APK (~2 MB)
+./gradlew installOfflineDebug      # build and install on a connected device
+./gradlew testOfflineDebugUnitTest # unit tests
+./gradlew lintOfflineDebug         # lint — a build gate, not advisory
+./gradlew assembleOfflineRelease   # minified release APK (~2 MB)
+./gradlew check                    # the above plus both privacy gates
 ```
+
+Task names carry the flavour. `offline` is the default and the one that is
+published; substitute `connected` to build the variant with the web-reading
+layer, which declares `INTERNET`. See [The two builds](#the-two-builds).
 
 Minimum Android 8.0 (API 26). Gemini Nano needs a device with AICore; everywhere
 else the built-in engine runs instead, and Settings tells you which you have.

@@ -26,26 +26,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
-      Removing these is the single most important line in this file.
+      Network permissions are stripped in src/offline/AndroidManifest.xml, which
+      applies to the default flavour and therefore to the published APK.
 
-      ML Kit's GenAI client pulls in com.google.android.datatransport:
-      transport-backend-cct — Google's telemetry upload backend — and that
-      library declares INTERNET and ACCESS_NETWORK_STATE. Manifest merging
-      adds them to the APK, so a build that reads as "no network" in this
-      file shipped with full network access. The absence has to be asserted,
-      not assumed.
-
-      Nano inference is unaffected: it reaches AICore over Binder IPC, and
-      the model is downloaded by the system service, never by this process.
-      Anything in that transitive dependency which did want a socket now
-      cannot open one.
-
-      If this ever needs revisiting, the check is:
-        grep "permission.INTERNET" \
-          app/build/intermediates/merged_manifest/release/**/AndroidManifest.xml
+      They are not stripped here because this manifest is shared with the
+      `connected` flavour, whose entire purpose is to have network access. Doing
+      it per-flavour is what lets the offline build's claim stay absolute
+      instead of becoming "unless a setting is on".
     -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <!--
       allowBackup is false because Android's auto-backup would copy the
