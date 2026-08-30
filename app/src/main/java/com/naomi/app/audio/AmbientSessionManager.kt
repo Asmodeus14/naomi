@@ -65,7 +65,7 @@ class AmbientSessionManager(
                 delay(30000)
                 if (_sessionState.value.isActive) {
                     speechEngine.stopListening { transcript ->
-                        if (transcript.isNotBlank()) {
+                        if (!transcript.isBlank) {
                             scope.launch {
                                 val result = processAmbientChunkUseCase(transcript)
                                 if (result != null) {
@@ -91,7 +91,7 @@ class AmbientSessionManager(
     fun stopSession() {
         speechEngine.stopListening { transcript ->
             sessionScope?.launch {
-                if (transcript.isNotBlank()) {
+                if (!transcript.isBlank) {
                     processAmbientChunkUseCase(transcript)
                 }
             }

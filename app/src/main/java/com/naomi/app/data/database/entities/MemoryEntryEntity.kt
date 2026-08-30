@@ -38,8 +38,22 @@ data class MemoryEntryEntity(
     val noteId: Long,
     /** One line describing what this entry added, e.g. "Fixed vertex count". */
     val summary: String,
-    /** Exactly what was said, kept so nothing the user told Naomi is lost. */
+    /** What this entry says, after misheard proper nouns have been repaired. */
     val transcript: String,
+    /**
+     * What the recogniser actually produced, when that differed.
+     *
+     * Null means nothing was corrected and [transcript] is already verbatim,
+     * which is the common case — storing it unconditionally would double every
+     * memory on disk for nothing.
+     *
+     * This column exists because a memory can be *continued*. Only the first
+     * utterance reaches `notes.rawTranscript`; without somewhere to put the
+     * later ones, a correction on a continuation would destroy the only copy of
+     * what the user said. Naomi is allowed to mishear. It is not allowed to
+     * overwrite the evidence.
+     */
+    val rawTranscript: String? = null,
     val idea: String? = null,
     val decision: String? = null,
     /**

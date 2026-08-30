@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Naomi learns your words.** A speech recogniser has never heard of your
+  project, so it renders "Nyx" as "next" with complete confidence — and the
+  mistake is inherited by the title, the topic it files under and the search
+  index. Naomi now keeps a local vocabulary of the names, projects and technical
+  terms that appear in your own memories, and uses it to repair a mishearing at
+  the point of capture.
+- **The recogniser's second opinion is no longer discarded.** Android returns
+  several competing hypotheses per utterance and Naomi kept only the first. When
+  the right word is sitting in hypothesis two, that is now treated as evidence.
+- **"It's Nyx, not next."** Naomi has no keyboard, so speech is the only way to
+  teach it a word. Saying the correction out loud adds the term and takes effect
+  on the same capture.
+- **`memory_entries.rawTranscript`.** Only the utterance that *starts* a memory
+  reached `notes.rawTranscript`; everything said about it afterwards had nowhere
+  to keep the words as spoken. Correcting a continuation was destroying the only
+  copy. Null whenever nothing was corrected.
+- **Migration tests.** The database has real migrations and deliberately no
+  destructive fallback, so a bad one is a crash on launch for someone whose data
+  is already there. There are now instrumented tests proving an upgrade from
+  every prior version keeps existing memories.
+
+### Notes on what this deliberately will not do
+- A correction needs a word to *sound* like a known term **and** be corroborated
+  — by nearby related words, or by the recogniser having offered it. Context
+  alone can never rewrite anything.
+- Collocations like "next week", "last Monday" and "first time" are checked
+  before any scoring and can never be overridden, no matter how much Naomi knows
+  about a project called Nyx.
+- The original words are always kept, so a wrong correction is recoverable.
+- Text shared in from another app is neither corrected nor learned from — it is
+  someone else's words, and nothing about it was ever acoustically uncertain.
+- The vocabulary never leaves the device. It is an unusually precise description
+  of what you work on and who you know; sending it somewhere to improve
+  recognition would trade away the thing this app exists to protect. No new
+  permissions, no new network surface.
+
 ---
 
 ## [0.2.0] - 2026-08-30

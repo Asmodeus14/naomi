@@ -108,7 +108,7 @@ class AudioProcessingService : Service() {
                 )
                 NaomiApp.instance.speechEngine.stopListening { transcript ->
                     serviceScope.launch {
-                        if (transcript.isNotBlank()) {
+                        if (!transcript.isBlank) {
                             // Collect the pipeline's terminal stage. Anything the
                             // use case doesn't already convert into a Failed stage
                             // is caught here, so the widget never sticks on

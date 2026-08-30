@@ -1,6 +1,9 @@
 package com.naomi.app.domain.usecases
 
+import android.util.Log
 import com.naomi.app.ai.intelligence.LocalIntelligenceEngine
+import com.naomi.app.ai.intelligence.TranscriptNormalizer
+import com.naomi.app.ai.speech.Transcript
 import com.naomi.app.data.database.entities.NoteEntity
 import com.naomi.app.domain.repository.KnowledgeRepository
 
@@ -21,15 +24,20 @@ class ProcessAmbientChunkUseCase(
 ) {
     private var lastTopicId: Long? = null
 
-    suspend operator fun invoke(chunkTranscript: String): AmbientChunkResult? {
-        val clean = chunkTranscript.trim()
+    suspend operator fun invoke(chunk: Transcript): AmbientChunkResult? {
+        val clean = chunk.text.trim()
         if (clean.isBlank()) return null
 
-        val knowledge = LocalIntelligenceEngine.analyze(clean)
+        // Ambient capture is where mishearings hurt most — nobody is watching
+        // the screen to catch one — so it gets the same repair as a deliberate
+        // recording, and for the same reason the raw text is kept as spoken.
+        val corrected = correctProperNouns(clean, chunk)
+
+        val knowledge = LocalIntelligenceEngine.analyze(corrected)
         val note = knowledgeRepository.saveNote(
             knowledge = knowledge,
             rawTranscript = clean,
-            cleanTranscript = clean
+            cleanTranscript = corrected
         )
 
         // Compare where the memory actually landed rather than what the text
@@ -47,7 +55,22 @@ class ProcessAmbientChunkUseCase(
         )
     }
 
+    private suspend fun correctProperNouns(clean: String, chunk: Transcript): String = try {
+        TranscriptNormalizer.correct(
+            transcript = Transcript(clean, chunk.utterances),
+            vocabulary = knowledgeRepository.getVocabulary(),
+            topicPaths = knowledgeRepository.getTopicPaths()
+        ).text
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not load vocabulary; keeping the chunk as heard", e)
+        clean
+    }
+
     fun reset() {
         lastTopicId = null
+    }
+
+    private companion object {
+        const val TAG = "ProcessAmbientChunk"
     }
 }

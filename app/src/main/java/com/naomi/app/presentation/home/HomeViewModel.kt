@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.naomi.app.NaomiApp
 import com.naomi.app.ai.intelligence.SharedTextParser
 import com.naomi.app.ai.speech.SpeechState
+import com.naomi.app.ai.speech.Transcript
 import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.data.database.entities.NoteEntity
 import com.naomi.app.data.database.entities.TopicEntity
@@ -143,14 +144,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val shared = SharedTextParser.parse(subject, body)
         if (shared.text.isBlank()) return
         processThought(
-            transcript = shared.text,
+            transcript = Transcript.of(shared.text),
             source = MemoryEntryEntity.SOURCE_SHARED,
             sourceUrl = shared.url
         )
     }
 
     fun processThought(
-        transcript: String,
+        transcript: Transcript,
         source: String = MemoryEntryEntity.SOURCE_SPOKEN,
         sourceUrl: String? = null
     ) {

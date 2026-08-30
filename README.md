@@ -178,8 +178,8 @@ not a search over your memories. Naomi has no mechanism to combine the two.
 
 ## How the understanding works
 
-No cloud model, no bundled weights, no subject-matter word lists. Two providers
-are tried in order, and both run on the device:
+No cloud model and no bundled weights. Two providers are tried in order, and both
+run on the device:
 
 1. **Gemini Nano**, if AICore reports the model available. Its response is treated
    as untrusted — the JSON is salvaged, validated, and rejected outright if the
@@ -203,6 +203,47 @@ otherwise it becomes a new root. When nothing is confident enough it goes to
 Matching is deliberately strict. Merging two distinct topics silently destroys
 your organisation and is nearly impossible to notice; failing to merge leaves a
 duplicate you can fix in one tap. The threshold reflects that asymmetry.
+
+### Getting your proper nouns right
+
+A speech recogniser is trained on general English and has never heard of your
+project. Told "Nyx", it returns the nearest word it does know — "next" — with
+complete confidence, and every stage downstream inherits the mistake.
+
+Naomi keeps a **local vocabulary** of the names and terms that appear in your own
+memories, learned from the topics your words create, and repairs a mishearing
+before anything reads it. Matching is phonetic
+([`Phonetics.kt`](app/src/main/java/com/naomi/app/ai/intelligence/Phonetics.kt),
+a trimmed Metaphone) rather than spelling-based, because the mistake being
+corrected is an acoustic one: "Nyx" and "next" are `NKS` and `NKST`, one
+character apart, while as *spellings* they score 0.5 — nowhere near the
+0.82 the topic matcher needs.
+
+Rewriting what you said is a destructive act, so
+[`TranscriptNormalizer.kt`](app/src/main/java/com/naomi/app/ai/intelligence/TranscriptNormalizer.kt)
+is built to refuse:
+
+- **Sound is necessary, never sufficient.** A word must sound like a known term
+  *and* be corroborated — by related words beside it, or by the recogniser
+  having offered the term in a losing hypothesis.
+- **Collocations are untouchable.** "next week", "last Monday", "first time" are
+  checked before anything is scored, so no amount of evidence can rewrite them.
+- **The original survives.** Both `notes.rawTranscript` and, for a continued
+  memory, `memory_entries.rawTranscript` keep the words exactly as heard.
+- **Shared text is exempt** — it is someone else's words, and nothing about it
+  was ever acoustically uncertain.
+
+There *is* one bundled word list — [`VocabularySeed.kt`](app/src/main/java/com/naomi/app/ai/intelligence/VocabularySeed.kt),
+about 150 technical terms — because a vocabulary learned only from your memories
+is empty on the day it is needed most. It is safe precisely because seeded terms
+have no place in your topic tree and so can earn no contextual evidence: one can
+only win when the recogniser itself offered it, which is the recogniser agreeing
+rather than Naomi guessing. Nothing outside that file knows what a ring buffer or
+a tomato seedling is.
+
+The vocabulary never leaves the device, and adds no permission and no network
+call. It is an unusually precise description of what you work on and who you
+know.
 
 ---
 

@@ -187,6 +187,14 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// MigrationTestHelper opens the old schemas at runtime, so they have to be
+// packaged into the test APK as assets. Without this the migration test fails
+// with a "Cannot find the schema file" that reads like a broken test rather
+// than a missing wiring step.
+android.sourceSets.getByName("androidTest") {
+    assets.srcDirs(files("$projectDir/schemas"))
+}
+
 /**
  * Fails the build if the merged manifest grants network access.
  *
@@ -346,6 +354,21 @@ tasks.register("checkWebModuleBoundary") {
 tasks.named("check").configure { dependsOn("checkWebModuleBoundary") }
 
 dependencies {
+    constraints {
+        // Two AndroidX libraries disagree about kotlinx-serialization, and the
+        // disagreement surfaces at runtime rather than at compile time.
+        // navigation-compose 2.8.4 pulls in a 1.6.3 BOM; room-migration 2.8.4 —
+        // which is what reads the exported schema JSON during a migration test —
+        // is built against 1.8. Gradle's consistent resolution then pins the
+        // androidTest classpath to 1.6.3 as well, and every MigrationTest dies
+        // with an AbstractMethodError inside a generated serializer.
+        //
+        // Aligning on the newer core is safe in both directions: 1.8 keeps the
+        // 1.6 API navigation uses, and it is what Room already expects.
+        implementation(libs.kotlinx.serialization.core)
+        androidTestImplementation(libs.kotlinx.serialization.core)
+    }
+
     // The interface only. Plain Kotlin, no manifest, no network — safe in every
     // build. The implementation is added for `connected` alone, below.
     implementation(project(":web-api"))
@@ -382,6 +405,11 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // Migrations run against a real SQLite, so they can only be tested on a
+    // device. The alternative is finding out on a user's phone, in an app whose
+    // database is the entire product and which deliberately has no destructive
+    // fallback to soften the landing.
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)

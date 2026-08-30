@@ -1,5 +1,6 @@
 package com.naomi.app.domain.repository
 
+import com.naomi.app.ai.intelligence.VocabularyTerm
 import com.naomi.app.data.database.entities.*
 import com.naomi.app.domain.model.*
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +66,28 @@ interface KnowledgeRepository {
 
     fun getRelatedTopicsFlow(topicId: Long): Flow<List<TopicEntity>>
     suspend fun addTopicRelationship(fromTopicId: Long, toTopicId: Long, type: String = "RELATED")
+
+    /**
+     * Fills the vocabulary with the shipped seed list the first time it is
+     * empty, and does nothing on every launch after that.
+     *
+     * Separate from learning because seeded terms are generic: they arrive with
+     * an occurrence count of zero and no place in the topic tree, so they can
+     * never accumulate the contextual evidence a correction needs on their own.
+     */
+    suspend fun ensureVocabularySeeded()
+
+    /** Everything Naomi may correct a misheard word *to*. Blocked terms excluded. */
+    suspend fun getVocabulary(): List<VocabularyTerm>
+
+    /**
+     * The user said the word out loud and meant it — "it's Nyx, not next".
+     * Trusted above anything inferred from the topic tree.
+     */
+    suspend fun confirmSpelling(term: String)
+
+    /** Stop correcting things to this word. */
+    suspend fun blockSpelling(term: String)
 
     suspend fun search(query: String): SearchResult
     suspend fun buildTopicTree(): List<TopicNode>

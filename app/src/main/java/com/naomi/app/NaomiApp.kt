@@ -1,6 +1,7 @@
 package com.naomi.app
 
 import android.app.Application
+import android.util.Log
 import com.naomi.app.ai.speech.AndroidSpeechToTextEngine
 import com.naomi.app.ai.speech.SpeechToTextEngine
 import com.naomi.app.audio.AmbientSessionManager
@@ -18,6 +19,9 @@ import com.naomi.app.domain.repository.SettingsRepository
 import com.naomi.app.domain.usecases.*
 import com.naomi.app.reminder.ReminderReceiver
 import com.naomi.app.reminder.ReminderScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class NaomiApp : Application() {
 
@@ -92,5 +96,16 @@ class NaomiApp : Application() {
         cleanStorageUseCase = CleanStorageUseCase(recordingRepository)
 
         ambientSessionManager = AmbientSessionManager(speechEngine, processAmbientChunkUseCase)
+
+        // Off the main thread and unawaited: the seed list only matters once
+        // someone speaks, which is many seconds away, and blocking onCreate on a
+        // database write would delay the first frame for nothing.
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                knowledgeRepository.ensureVocabularySeeded()
+            } catch (e: Exception) {
+                Log.w("NaomiApp", "Could not seed the vocabulary; corrections start from nothing", e)
+            }
+        }
     }
 }

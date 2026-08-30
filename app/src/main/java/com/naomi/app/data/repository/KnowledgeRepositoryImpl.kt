@@ -1,9 +1,13 @@
 package com.naomi.app.data.repository
 
 import androidx.room.withTransaction
+import com.naomi.app.ai.intelligence.Lexicon
 import com.naomi.app.ai.intelligence.MemoryMerger
+import com.naomi.app.ai.intelligence.Phonetics
 import com.naomi.app.ai.intelligence.TopicMatcher
 import com.naomi.app.ai.intelligence.TopicResolver
+import com.naomi.app.ai.intelligence.VocabularySeed
+import com.naomi.app.ai.intelligence.VocabularyTerm
 import com.naomi.app.data.database.NaomiDatabase
 import com.naomi.app.data.database.entities.*
 import com.naomi.app.domain.model.*
@@ -22,6 +26,9 @@ class KnowledgeRepositoryImpl(
     private val memoryEntryDao = db.memoryEntryDao()
     private val entityRefDao = db.entityRefDao()
     private val relationshipDao = db.topicRelationshipDao()
+    private val vocabularyDao = db.vocabularyDao()
+
+    private val WHITESPACE = Regex("\\s+")
 
     override fun getRootTopicsFlow(): Flow<List<TopicEntity>> = topicDao.getRootTopicsFlow()
 
@@ -240,6 +247,7 @@ class KnowledgeRepositoryImpl(
                     noteId = decision.noteId,
                     title = decision.title,
                     knowledge = knowledge,
+                    rawTranscript = rawTranscript,
                     cleanTranscript = cleanTranscript,
                     source = source,
                     sourceUrl = sourceUrl,
@@ -298,6 +306,22 @@ class KnowledgeRepositoryImpl(
                 )
             }
 
+            // Naomi learns how to hear the user by watching what the user talks
+            // about. Inside the transaction so a memory and the vocabulary it
+            // taught can never disagree.
+            //
+            // Not for shared text: a paragraph pasted in from a web page is
+            // someone else's words, and treating the nouns in it as this user's
+            // private vocabulary would corrupt future corrections with terms
+            // they never said.
+            if (source != MemoryEntryEntity.SOURCE_SHARED) {
+                learnVocabulary(
+                    topicNames = listOf(root.name, leaf.name),
+                    entityNames = knowledge.entities.map { it.name },
+                    now = now
+                )
+            }
+
             note
         }
     }
@@ -334,6 +358,8 @@ class KnowledgeRepositoryImpl(
                 noteId = id,
                 summary = knowledge.summary,
                 transcript = cleanTranscript,
+                // Only when they differ — see MemoryEntryEntity.rawTranscript.
+                rawTranscript = rawTranscript.takeIf { it != cleanTranscript },
                 idea = knowledge.idea,
                 decision = knowledge.decision,
                 source = source,
@@ -360,6 +386,7 @@ class KnowledgeRepositoryImpl(
         noteId: Long,
         title: String,
         knowledge: ExtractedKnowledge,
+        rawTranscript: String,
         cleanTranscript: String,
         source: String,
         sourceUrl: String?,
@@ -382,6 +409,8 @@ class KnowledgeRepositoryImpl(
                 noteId = noteId,
                 summary = knowledge.summary,
                 transcript = cleanTranscript,
+                // Only when they differ — see MemoryEntryEntity.rawTranscript.
+                rawTranscript = rawTranscript.takeIf { it != cleanTranscript },
                 idea = knowledge.idea,
                 decision = knowledge.decision,
                 source = source,
@@ -458,6 +487,108 @@ class KnowledgeRepositoryImpl(
         } else ""
 
         "${topic.name} holds $countText$subtopicText."
+    }
+
+    // ---- vocabulary ----
+
+    override suspend fun ensureVocabularySeeded() = withContext(Dispatchers.IO) {
+        // Emptiness is the signal rather than a "seeded" flag, because a user
+        // who deletes every seeded term should not have them all reappear on the
+        // next launch — and one they keep is enough to stop this running again.
+        if (vocabularyDao.count() > 0) return@withContext
+        vocabularyDao.insertAllIgnoring(VocabularySeed.entities(System.currentTimeMillis()))
+    }
+
+    override suspend fun getVocabulary(): List<VocabularyTerm> = withContext(Dispatchers.IO) {
+        vocabularyDao.getUsableTerms().map { row ->
+            VocabularyTerm(
+                term = row.term,
+                normalized = row.normalized,
+                phoneticKey = row.phoneticKey,
+                occurrences = row.occurrences,
+                isUserConfirmed = row.source == VocabularyEntity.SOURCE_USER
+            )
+        }
+    }
+
+    override suspend fun confirmSpelling(term: String) = withContext(Dispatchers.IO) {
+        val normalized = term.trim().lowercase()
+        if (normalized.isBlank()) return@withContext
+        vocabularyDao.insertIgnoring(
+            VocabularyEntity(
+                term = term.trim(),
+                normalized = normalized,
+                phoneticKey = Phonetics.key(term),
+                kind = VocabularyEntity.KIND_TERM,
+                source = VocabularyEntity.SOURCE_USER,
+                occurrences = 0,
+                lastSeenAt = System.currentTimeMillis()
+            )
+        )
+        // Runs whether or not the insert landed: if the term was already there
+        // this promotes it, and if it was blocked this is the user unblocking it.
+        vocabularyDao.confirmByUser(normalized, System.currentTimeMillis())
+    }
+
+    override suspend fun blockSpelling(term: String) = withContext(Dispatchers.IO) {
+        vocabularyDao.setBlocked(term.trim().lowercase(), true)
+    }
+
+    /**
+     * Records the proper nouns in one capture.
+     *
+     * Called from inside [saveNote]'s transaction, so it must not open its own.
+     * Single words only: the normalizer can only rewrite one token onto one
+     * token, and a multi-word phrase already earns its keep as a topic path.
+     */
+    private suspend fun learnVocabulary(
+        topicNames: List<String>,
+        entityNames: List<String>,
+        now: Long
+    ) {
+        fun candidates(names: List<String>, kind: String, src: String) =
+            names.asSequence()
+                .flatMap { it.split(WHITESPACE) }
+                .map { it.trim { c -> !c.isLetterOrDigit() } }
+                .filter { isLearnable(it) }
+                .map { Triple(it, kind, src) }
+
+        val all = (
+            candidates(topicNames, VocabularyEntity.KIND_PROJECT, VocabularyEntity.SOURCE_TOPIC) +
+                candidates(entityNames, VocabularyEntity.KIND_TERM, VocabularyEntity.SOURCE_ENTITY)
+            ).distinctBy { it.first.lowercase() }
+
+        for ((word, kind, src) in all) {
+            val normalized = word.lowercase()
+            vocabularyDao.insertIgnoring(
+                VocabularyEntity(
+                    term = word,
+                    normalized = normalized,
+                    phoneticKey = Phonetics.key(word),
+                    kind = kind,
+                    source = src,
+                    occurrences = 0,
+                    lastSeenAt = now
+                )
+            )
+            // Always, not only on a fresh insert — this is the sighting count,
+            // and a term is worth more each time the user says it again.
+            vocabularyDao.reinforce(normalized, now)
+        }
+    }
+
+    /**
+     * A word is worth learning only if getting it wrong would be noticeable.
+     *
+     * Ordinary English is excluded outright: adding "meeting" to the vocabulary
+     * gains nothing — the recogniser already knows it — while giving the
+     * normalizer another word it might rewrite something into.
+     */
+    private fun isLearnable(word: String): Boolean {
+        if (word.length < 3 || word.length > 30) return false
+        if (word.none { it.isLetter() }) return false
+        if (Lexicon.isCommonWord(word) || Lexicon.isPhraseBreaker(word)) return false
+        return true
     }
 
     override suspend fun search(query: String): SearchResult = withContext(Dispatchers.IO) {

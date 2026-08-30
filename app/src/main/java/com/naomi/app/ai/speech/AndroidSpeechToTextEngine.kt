@@ -27,7 +27,7 @@ class AndroidSpeechToTextEngine(
     override val audioRms: StateFlow<Float> = _audioRms.asStateFlow()
 
     private var speechRecognizer: SpeechRecognizer? = null
-    private var resultCallback: ((String) -> Unit)? = null
+    private var resultCallback: ((Transcript) -> Unit)? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
@@ -35,6 +35,16 @@ class AndroidSpeechToTextEngine(
 
     private val cumulativeTranscript = StringBuilder()
     private var currentPartial = ""
+
+    /**
+     * One entry per completed recognition session, in the order they were heard.
+     *
+     * Kept parallel to [cumulativeTranscript] rather than derived from it,
+     * because the runner-up hypotheses cannot be recovered from the joined
+     * string: only the recogniser knows that this particular "next" was a
+     * near-tie with "Nyx", and it only says so once.
+     */
+    private val utterances = mutableListOf<Utterance>()
 
     override fun isAvailable(): Boolean {
         return SpeechRecognizer.isRecognitionAvailable(context)
@@ -44,6 +54,7 @@ class AndroidSpeechToTextEngine(
         mainHandler.post {
             isCapturing = true
             cumulativeTranscript.clear()
+            utterances.clear()
             currentPartial = ""
             _partialTranscript.value = ""
             _audioRms.value = 0.1f
@@ -123,6 +134,18 @@ class AndroidSpeechToTextEngine(
                                 cumulativeTranscript.append(" ")
                             }
                             cumulativeTranscript.append(text.trim())
+
+                            // The hypotheses after the first are what let a
+                            // misheard proper noun be recovered later. They are
+                            // only offered here, and only for this utterance.
+                            utterances += Utterance(
+                                chosen = text.trim(),
+                                alternatives = matches
+                                    ?.drop(1)
+                                    ?.map { it.trim() }
+                                    ?.filter { it.isNotBlank() && !it.equals(text.trim(), ignoreCase = true) }
+                                    ?: emptyList()
+                            )
                         }
                         currentPartial = ""
                         _partialTranscript.value = cumulativeTranscript.toString().trim()
@@ -168,7 +191,11 @@ class AndroidSpeechToTextEngine(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                // Asked for so the runner-up hypotheses can be weighed rather
+                // than merely counted. Not every recogniser supplies them, so
+                // nothing downstream may depend on their presence.
+                putExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, true)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 30000L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
@@ -185,7 +212,7 @@ class AndroidSpeechToTextEngine(
         }
     }
 
-    override fun stopListening(onResult: (String) -> Unit) {
+    override fun stopListening(onResult: (Transcript) -> Unit) {
         isCapturing = false
         this.resultCallback = onResult
 
@@ -208,20 +235,30 @@ class AndroidSpeechToTextEngine(
         val callback = resultCallback
         resultCallback = null
 
+        // A trailing partial is speech the recogniser never got to finalise, so
+        // it arrives with no alternatives — it is a hypothesis, not a ranking.
+        val trailing = currentPartial.trim()
+            .takeIf { it.isNotBlank() && !cumulativeTranscript.contains(it) }
+
         val finalResult = buildString {
             if (cumulativeTranscript.isNotEmpty()) {
                 append(cumulativeTranscript.toString().trim())
             }
-            if (currentPartial.isNotBlank() && !cumulativeTranscript.contains(currentPartial)) {
+            if (trailing != null) {
                 if (isNotEmpty()) append(" ")
-                append(currentPartial.trim())
+                append(trailing)
             }
         }.trim()
+
+        val transcript = Transcript(
+            text = finalResult,
+            utterances = utterances + listOfNotNull(trailing?.let { Utterance(it) })
+        )
 
         _state.value = SpeechState.Idle
         _audioRms.value = 0f
 
-        callback?.invoke(finalResult)
+        callback?.invoke(transcript)
 
         try {
             speechRecognizer?.destroy()
@@ -233,6 +270,7 @@ class AndroidSpeechToTextEngine(
         isCapturing = false
         resultCallback = null
         cumulativeTranscript.clear()
+        utterances.clear()
         currentPartial = ""
 
         mainHandler.post {

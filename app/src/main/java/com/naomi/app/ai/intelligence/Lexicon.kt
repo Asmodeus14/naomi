@@ -132,6 +132,33 @@ object Lexicon {
         "am", "pm", "oclock", "later", "soon", "earlier", "recently"
     )
 
+    /**
+     * High-frequency English words that are not stop words.
+     *
+     * Used by [TranscriptNormalizer] to decide how much evidence a correction
+     * needs. Rewriting "next" is dangerous in a way that rewriting "gee-tee-tee"
+     * is not: one is a word the speaker plausibly meant, the other is a noise
+     * the recogniser produced. Words in here have to clear a higher bar.
+     */
+    val commonWords: Set<String> = setOf(
+        "next", "last", "first", "second", "third", "final", "previous",
+        "new", "old", "good", "bad", "best", "worst", "better", "worse",
+        "big", "small", "long", "short", "high", "low", "left", "close",
+        "open", "full", "empty", "hard", "easy", "fast", "slow", "early",
+        "late", "same", "different", "other", "own", "sure", "able",
+        "work", "works", "working", "need", "needs", "look", "looks",
+        "start", "starts", "end", "ends", "try", "tries", "call", "calls",
+        "find", "finds", "help", "keep", "keeps", "run", "runs", "set",
+        "part", "parts", "point", "points", "case", "cases", "place",
+        "side", "line", "lines", "team", "people", "person", "guy"
+    )
+
+    fun isCommonWord(word: String): Boolean {
+        val lower = word.lowercase()
+        return stopWords.contains(lower) || commonWords.contains(lower) ||
+            temporalWords.contains(lower)
+    }
+
     fun isPhraseBreaker(word: String): Boolean {
         val lower = word.lowercase()
         return phraseBreakers.contains(lower) || temporalWords.contains(lower)

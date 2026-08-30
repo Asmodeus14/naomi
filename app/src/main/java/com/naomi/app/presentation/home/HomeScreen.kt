@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.naomi.app.ai.speech.Transcript
+import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.presentation.components.*
 import com.naomi.app.presentation.theme.NaomiShapes
 import com.naomi.app.presentation.theme.NaomiSpacing
@@ -261,7 +263,13 @@ fun HomeScreen(
                                 val text = typedThought
                                 typedThought = ""
                                 showTextInput = false
-                                viewModel.processThought(text)
+                                // Typed, not heard. Recorded as such so nothing
+                                // downstream treats these as words a recogniser
+                                // guessed at and might have got wrong.
+                                viewModel.processThought(
+                                    Transcript.of(text),
+                                    source = MemoryEntryEntity.SOURCE_TYPED
+                                )
                             }
                         ) { Text("Remember", fontWeight = FontWeight.SemiBold) }
                     },

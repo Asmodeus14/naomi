@@ -18,9 +18,10 @@ import com.naomi.app.data.database.entities.*
         EntityRefEntity::class,
         TopicRelationshipEntity::class,
         RecordingEntity::class,
-        SettingEntity::class
+        SettingEntity::class,
+        VocabularyEntity::class
     ],
-    version = 3,
+    version = 5,
     // Schemas are checked in so migrations can be tested against them, and so a
     // reviewer can see exactly what changed between versions.
     exportSchema = true
@@ -35,6 +36,7 @@ abstract class NaomiDatabase : RoomDatabase() {
     abstract fun topicRelationshipDao(): TopicRelationshipDao
     abstract fun recordingDao(): RecordingDao
     abstract fun settingDao(): SettingDao
+    abstract fun vocabularyDao(): VocabularyDao
 
     companion object {
         @Volatile
@@ -210,6 +212,66 @@ abstract class NaomiDatabase : RoomDatabase() {
         }
 
         /**
+         * v3 -> v4.
+         *
+         * Adds `vocabulary`: the terms Naomi should get right when the speech
+         * recogniser guesses wrong.
+         *
+         * Purely additive — no existing table is touched, so there is nothing to
+         * repair and no way for existing memories to be lost here. The table is
+         * left empty; seeding and learning happen in application code, because
+         * both need [com.naomi.app.ai.intelligence.Phonetics] to compute a sound
+         * key and a migration cannot call into Kotlin that might change.
+         *
+         * Column order and index names match what Room generates for
+         * [VocabularyEntity]; a mismatch fails validation on the next open
+         * rather than quietly diverging.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `vocabulary` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `term` TEXT NOT NULL,
+                        `normalized` TEXT NOT NULL,
+                        `phoneticKey` TEXT NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `occurrences` INTEGER NOT NULL,
+                        `lastSeenAt` INTEGER NOT NULL,
+                        `isBlocked` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_vocabulary_normalized` ON `vocabulary` (`normalized`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vocabulary_phoneticKey` ON `vocabulary` (`phoneticKey`)"
+                )
+            }
+        }
+
+        /**
+         * Gives a *continued* memory somewhere to keep the words as spoken.
+         *
+         * Correction only became safe on the promise that the original survives
+         * it, and `notes.rawTranscript` only holds the utterance that started
+         * the memory. Everything said about it afterwards lands in
+         * `memory_entries`, which had no such column — so a repaired
+         * continuation was overwriting the only copy of what the user said.
+         *
+         * Nullable, and left null whenever nothing was corrected: the column is
+         * an exception log, not a second copy of the database.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `memory_entries` ADD COLUMN `rawTranscript` TEXT")
+            }
+        }
+
+        /**
          * Turns on cascade enforcement. The `ON DELETE` rules declared on these
          * entities are inert unless SQLite is told to honour them, and the
          * pragma resets on every connection, so it belongs in `onOpen`.
@@ -230,7 +292,7 @@ abstract class NaomiDatabase : RoomDatabase() {
                     NaomiDatabase::class.java,
                     "naomi_knowledge.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(enforceForeignKeys)
                     // Deliberately no fallbackToDestructiveMigration. In an app
                     // whose whole promise is remembering things, a failed upgrade
