@@ -252,7 +252,7 @@ a tag.
 
 Two numbers, two different jobs.
 
-**`versionName`** — `"0.2.0"` in `app/build.gradle.kts`. Edited by hand. It should
+**`versionName`** — `"0.3.0"` in `app/build.gradle.kts`. Edited by hand. It should
 change because a release means something, not because a build happened. Bump it in
 the same commit that closes the `[Unreleased]` section of `CHANGELOG.md`.
 

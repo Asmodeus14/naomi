@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] - 2026-08-30
+
+The release where Naomi hears you properly, can tell the time, and stops
+looking the same on everyone's home screen.
+
 ### Added
 - **Naomi learns your words.** A speech recogniser has never heard of your
   project, so it renders "Nyx" as "next" with complete confidence — and the

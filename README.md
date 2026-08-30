@@ -376,8 +376,8 @@ produced, and you can confirm the central privacy claim on the exact binary you
 downloaded rather than on this README:
 
 ```bash
-sha256sum naomi-0.2.0.apk           # compare against SHA256SUMS.txt
-aapt2 dump permissions naomi-0.2.0.apk
+sha256sum naomi-0.3.0.apk           # compare against SHA256SUMS.txt
+aapt2 dump permissions naomi-0.3.0.apk
 ```
 
 No network permission is listed. Sideloaded apps do not update themselves, so
@@ -450,7 +450,7 @@ DEPLOYMENT.md is blunt about what that costs.
 
 ## Status
 
-**Naomi is pre-1.0. The current version is `0.2.0`.** Release builds are signed
+**Naomi is pre-1.0. The current version is `0.3.0`.** Release builds are signed
 with an upload key that is not in this repository; `.gitignore` and a build check
 keep it that way. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
