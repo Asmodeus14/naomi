@@ -9,40 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Signed release builds.** An upload key configured from a gitignored
-  `keystore.properties` locally and from GitHub secrets in CI. Release builds
-  never fall back to the debug key: without credentials they stay unsigned and
-  `verifyReleaseSigning` fails with an explanation.
-- **APK Signature Scheme v3.** Enables key rotation, which without a store
-  holding a recoverable copy of the signing key is the only way a compromised
-  key can be replaced on Android 9+ without every user uninstalling.
-- **`SHA256SUMS.txt` on every release**, so the privacy claim can be checked
-  against the exact binary that was downloaded rather than against the README.
-
-### Changed
-- **Distribution is GitHub Releases, not Google Play.** A version tag builds,
-  signs and verifies the APK and opens a *draft* release; pushing to `main`
-  publishes nothing. `versionCode` is derived from the tag
-  (`major*10000 + minor*100 + patch`) rather than a build counter, so re-running
-  the workflow on a tag cannot produce a second binary claiming to be that
-  release. DEPLOYMENT.md is explicit about what shipping outside a store
-  costs — chiefly that there is no Play App Signing, so a lost key means the app
-  can never be updated again.
-- The R8 mapping file is attached to each release, gzipped. Build artifacts
-  expire after 90 days; the APK they describe does not.
-
-### Removed
-- The Play Internal Testing and Play production-promotion workflows, and the
-  `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` secret they needed.
-
 ---
 
-## [0.2.0] - 2026-08-29
+## [0.2.0] - 2026-08-30
 
-The release where a memory stops being a single utterance.
+The release where a memory stops being a single utterance — and the first one
+anybody can actually install.
 
 ### Added
+- **Signed, installable releases.** Naomi is distributed as a signed APK on
+  GitHub Releases. A version tag builds, signs and verifies it and opens a
+  *draft* release; pushing to `main` publishes nothing. Signing credentials come
+  from a gitignored `keystore.properties` locally and from GitHub secrets in CI,
+  and release builds never fall back to the debug key — without credentials they
+  stay unsigned and `verifyReleaseSigning` fails with an explanation.
+  Earlier drafts of 0.1.0 and 0.2.0 attached an *unsigned* APK; neither was ever
+  published, and both were withdrawn rather than left to be found.
+- **`SHA256SUMS.txt` on every release**, so the no-`INTERNET` claim can be
+  checked against the exact binary you downloaded rather than against this file.
+- **APK Signature Scheme v3.** Naomi ships outside a store, so there is no Play
+  App Signing holding a recoverable copy of the signing key. v3's
+  proof-of-rotation lineage is the only mechanism that lets a compromised key be
+  replaced on Android 9+ without every user uninstalling and losing their
+  memories, and it cannot be added retroactively to APKs already published.
 - **Living memory.** Saying more about something you have already told Naomi
   continues that memory rather than creating a second one, and the memory keeps
   a dated history of everything said about it. Topics grow a timeline.
@@ -101,6 +90,15 @@ The release where a memory stops being a single utterance.
   identical to the square one, and Android 13's themed icons had no monochrome
   layer and fell back to a washed-out square.
 - Every screenshot in the README was recaptured from the running app.
+- `versionCode` is derived from the release tag (`major*10000 + minor*100 +
+  patch`) rather than from a build counter. With no store to reject a duplicate,
+  a counter would let a re-run of the same tag produce a second binary claiming
+  to be that release. The release also refuses to build if the tag and
+  `versionName` disagree.
+- The R8 mapping file is attached to each release, gzipped — build artifacts
+  expire after 90 days and the APK they describe does not, and at 38 MB raw it
+  would otherwise be the largest file on the download page by a factor of
+  seventeen.
 
 ---
 
