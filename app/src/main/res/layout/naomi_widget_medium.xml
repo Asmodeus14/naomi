@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  See naomi_widget_small.xml for why the background is an ImageView layer rather
+  than the root's android:background.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_medium_root"
     android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_system" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="16dp"
@@ -32,15 +47,15 @@
                 android:layout_height="match_parent"
                 android:background="@drawable/widget_orb_outer_circle" />
 
-            <TextView
+            <!-- dp, not sp: an sp glyph grows with the font scale and breaks
+                 out of the fixed 44dp container. -->
+            <ImageView
                 android:id="@+id/widget_medium_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center"
-                android:includeFontPadding="false"
-                android:text="●"
-                android:textColor="@color/widget_orb_idle"
-                android:textSize="24sp" />
+                android:contentDescription="@null"
+                android:src="@drawable/widget_orb_dot" />
         </FrameLayout>
 
         <LinearLayout
@@ -128,4 +143,6 @@
             android:textSize="10sp" />
     </LinearLayout>
 
-</LinearLayout>
+  </LinearLayout>
+
+</FrameLayout>

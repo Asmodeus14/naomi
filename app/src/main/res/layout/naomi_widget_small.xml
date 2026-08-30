@@ -1,60 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  The background is a full-bleed ImageView behind the content rather than the
+  root's `android:background`. That is what makes per-widget appearance possible
+  at all: `setImageViewResource` swaps the corner radius, `setImageAlpha` sets
+  the opacity and `setColorFilter` sets the colour, none of which a root
+  background can be told through RemoteViews.
+
+  The text sits above it and is never faded — opacity is clamped so the
+  background stays readable behind fully opaque foreground colours.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_small_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="16dp"
     android:contentDescription="@string/widget_name">
 
-    <!-- Subtle Orb Container with halo depth -->
-    <FrameLayout
-        android:id="@+id/widget_small_orb_container"
-        android:layout_width="48dp"
-        android:layout_height="48dp">
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_system" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="16dp">
 
         <!-- FrameLayout, not View: plain View is not on the RemoteViews
              allow-list and throws at inflate time inside the launcher. -->
         <FrameLayout
-            android:id="@+id/widget_small_halo"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/widget_orb_outer_circle" />
+            android:id="@+id/widget_small_orb_container"
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+            <FrameLayout
+                android:id="@+id/widget_small_halo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/widget_orb_outer_circle" />
+
+            <!-- Sized in dp. This was an "sp" text glyph, which grew with the
+                 user's font scale until it overflowed the 48dp container. -->
+            <ImageView
+                android:id="@+id/widget_small_icon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/widget_orb_dot" />
+        </FrameLayout>
 
         <TextView
-            android:id="@+id/widget_small_icon"
+            android:id="@+id/widget_small_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:includeFontPadding="false"
-            android:text="●"
-            android:textColor="@color/widget_orb_idle"
-            android:textSize="26sp" />
-    </FrameLayout>
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.04"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Naomi"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="14sp" />
 
-    <!-- Understated Title -->
-    <TextView
-        android:id="@+id/widget_small_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.04"
-        android:text="Naomi"
-        android:textColor="@color/widget_text_primary"
-        android:textSize="14sp" />
+        <TextView
+            android:id="@+id/widget_small_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Tap to speak"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="11sp" />
 
-    <!-- Subtitle / State Indicator -->
-    <TextView
-        android:id="@+id/widget_small_subtitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:fontFamily="sans-serif"
-        android:text="Tap to speak"
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="11sp" />
+    </LinearLayout>
 
-</LinearLayout>
+</FrameLayout>

@@ -112,19 +112,51 @@
             </intent-filter>
         </receiver>
 
-        <!-- Home Screen AppWidget -->
+        <!--
+          Home screen AppWidget.
+
+          Exported because an AppWidgetProvider must be — the launcher lives in
+          another process and has to be able to send it APPWIDGET_UPDATE.
+
+          It used to carry ACTION_WIDGET_TAP in this same filter, which meant
+          any app on the device could start or stop a recording by sending one
+          broadcast. Tap handling now lives in a separate, non-exported receiver
+          reached by explicit component.
+        -->
         <receiver
             android:name=".widget.NaomiWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.naomi.app.widget.ACTION_WIDGET_TAP" />
-                <action android:name="com.naomi.app.widget.ACTION_STATE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/naomi_widget_info" />
         </receiver>
+
+        <!--
+          The only thing that can start a capture from the home screen. Not
+          exported: the only sender that reaches it is Naomi's own PendingIntent,
+          which carries this app's identity.
+        -->
+        <receiver
+            android:name=".widget.WidgetTapReceiver"
+            android:exported="false" />
+
+        <!--
+          Per-widget appearance. `exported` is true because the *launcher*
+          starts it when a widget is placed; it does nothing on its own and
+          refuses to act without a valid widget id handed to it by the host.
+        -->
+        <activity
+            android:name=".widget.WidgetConfigActivity"
+            android:exported="true"
+            android:label="@string/widget_config_title"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
 
     </application>
 

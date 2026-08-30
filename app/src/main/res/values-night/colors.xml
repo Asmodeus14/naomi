@@ -1,15 +1,19 @@
 <resources>
     <!-- Mirrors StitchDark* in theme/Color.kt. See values/colors.xml. -->
 
-    <!-- Accents hold across themes: they mean the same thing in both. -->
-    <color name="naomi_listening_red">#E05252</color>
-    <color name="naomi_success_green">#4EBA87</color>
-    <color name="naomi_amber">#F5A623</color>
+    <!--
+      Accents are per-theme, not shared. They mean the same thing in both, but
+      the dark variants are lifted in lightness and dropped in saturation so
+      they carry that meaning without glowing against a near-black surface —
+      exactly as AccentListeningDark and friends do in Compose.
+    -->
+    <color name="naomi_listening_red">#EB6B67</color>
+    <color name="naomi_success_green">#68C48F</color>
+    <color name="naomi_amber">#E5B65C</color>
 
     <!-- Widget surface tokens (dark). -->
     <color name="widget_background">#111318</color>
     <color name="widget_surface">#181A20</color>
-    <color name="widget_surface_elevated">#20232B</color>
     <color name="widget_stroke">#2A2E38</color>
     <color name="widget_orb_idle">#B8C8DA</color>
     <color name="widget_orb_halo">#1AB8C8DA</color>

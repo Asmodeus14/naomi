@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  targetCellHeight is 2, not 1: a single cell is roughly 40-50dp, which
-  contradicts the 80dp minHeight below and would place the widget beneath every
-  size breakpoint the provider defines.
+  targetCellWidth/Height are 2x2: that is the size the widget is designed
+  around, and the provider's breakpoints grow it into the 4x2 and 4x4 layouts
+  from there. A single cell is roughly 40-50dp, which would place the widget
+  beneath every breakpoint.
+
+  widgetFeatures includes `configuration_optional` as well as `reconfigurable`.
+  Without it, pinning the widget from Settings or a shortcut would be forced
+  through the configuration screen with no way to skip — and the defaults are
+  good, so the screen should be an offer rather than a toll gate.
 
   previewLayout points at the small layout rather than medium so the widget
   picker renders the simplest variant.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
-    android:minHeight="80dp"
+    android:minHeight="110dp"
     android:minResizeWidth="90dp"
-    android:minResizeHeight="60dp"
+    android:minResizeHeight="90dp"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
     android:maxResizeWidth="400dp"
@@ -19,6 +25,8 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/naomi_widget_small"
     android:previewLayout="@layout/naomi_widget_small"
+    android:configure="com.naomi.app.widget.WidgetConfigActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/widget_name" />

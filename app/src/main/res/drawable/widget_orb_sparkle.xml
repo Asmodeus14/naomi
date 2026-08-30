@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Remembering. Mirrors Icons.Outlined.AutoAwesome in the in-app orb. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,2L13.9,8.1L20,10L13.9,11.9L12,18L10.1,11.9L4,10L10.1,8.1Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M18.5,15L19.4,17.6L22,18.5L19.4,19.4L18.5,22L17.6,19.4L15,18.5L17.6,17.6Z" />
+</vector>

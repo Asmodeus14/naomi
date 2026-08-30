@@ -49,6 +49,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spelled-out counts above twelve now parse. "In thirteen days" and everything
   from fifteen up silently lost its deadline.
 
+- **Every widget can look different.** A preview-driven configuration screen —
+  the widget rendered live at the top, the controls beneath it — with per-widget
+  appearance (System/Light/Dark), background opacity, orb visibility, and whether
+  it shows a recent memory, the next task, or nothing but the orb. Reachable from
+  the launcher's own reconfigure gesture and from Settings.
+- **Removing a widget forgets its settings.** There was no `onDeleted`, so every
+  widget ever placed left its state behind forever — and widget ids get reused by
+  the host, which means a stranger's configuration arriving on a new widget.
+
+### Fixed
+
+- **Any app on the device could start or stop a recording.** `ACTION_WIDGET_TAP`
+  sat in the widget provider's intent filter, and a widget provider must be
+  exported so the launcher can reach it — so a single broadcast from anywhere
+  started the microphone. Tap handling moved to a separate, non-exported receiver
+  addressed by explicit component.
+- **A widget tap could silently do nothing.** It called `startActivity` from a
+  broadcast receiver, which Android 10+ blocks when the app is in the background —
+  exactly the case a home-screen widget is for. It now sends a `PendingIntent`.
+- **The widget went stale after a system theme change**, because colours were
+  resolved in Naomi's process and sent as integers. Under System theme the
+  layout now carries colour *references* that the host resolves itself.
+- **A per-second binder storm while recording.** The ticking timer pushed a full
+  update every second — a preferences write, an IPC, three layout builds, five
+  `PendingIntent` allocations and a transaction carrying every view — to move
+  one line of text. It now sends only the changed string.
+- **The largest widget was the one that told you least.** "Remembered" and
+  "Couldn't remember" reached the layout and had nowhere to be drawn.
+- **The orb was a text glyph sized in `sp`**, so it grew with the user's font
+  scale until it broke out of its container — the mistake the in-app orb had
+  deliberately avoided. It is now a dp-sized vector, and finally looks like the
+  app's orb.
+- **The widget's accent colours matched neither theme.** The listening red was
+  `#E05252` against the app's `#C5433F` light and `#EB6B67` dark, and it failed
+  WCAG AA on a light widget — so the one element that has to be unmistakable,
+  "I am recording you", was the least legible thing on it.
+- **Note ids were used as `PendingIntent` request codes** alongside the literals
+  101–105, so a memory whose id happened to be 103 replaced the "open the app"
+  intent with a link to itself.
+
 ### Notes on what this deliberately will not do
 
 - **The hour is not Naomi's to invent.** "Meeting tomorrow" stays a memory rather
@@ -64,6 +104,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anyone having agreed to anything.
 - **A bare number is not a time.** Dictation is full of "version 2" and
   "sprint 3".
+- **There is no corner-radius setting**, though there nearly was. It was built,
+  and then removed after watching it do nothing: launchers on Android 12+ clip
+  every widget to their own radius, so "Square" and "Rounded" rendered as
+  identical arcs on a real home screen. A setting you can change and see no
+  result from teaches you the whole screen is decorative.
+- **The widget never fakes background recording.** Tapping it opens Naomi to
+  record, or stops a capture already running.
 - A correction needs a word to *sound* like a known term **and** be corroborated
   — by nearby related words, or by the recogniser having offered it. Context
   alone can never rewrite anything.

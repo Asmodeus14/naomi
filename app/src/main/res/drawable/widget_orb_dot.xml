@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The orb, as a vector sized in dp.
+
+  It used to be a "●" in a TextView, which is sized in sp and therefore grows
+  with the user's font scale until it breaks out of its fixed-dp container. The
+  in-app NaomiOrb deliberately avoided exactly this; the widget did not.
+
+  Tinted here rather than on the ImageView. The provider re-tints it at runtime
+  with a colour filter, but the *static* preview in the widget picker has no
+  provider — and an untinted white shape on a near-white background left only
+  the halo ring visible, which is what the picker showed before this.
+
+  On the drawable rather than as `android:tint` on the ImageView because lint
+  insists that attribute be AppCompat's `app:tint`, and a launcher inflating a
+  RemoteViews layout has no AppCompat to interpret it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/widget_orb_idle">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,12m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+</vector>

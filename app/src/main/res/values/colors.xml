@@ -11,15 +11,23 @@
       ambiguous.
     -->
 
-    <!-- Semantic accents, shared with NaomiAccents in Compose. -->
-    <color name="naomi_listening_red">#E05252</color>
-    <color name="naomi_success_green">#4EBA87</color>
-    <color name="naomi_amber">#F5A623</color>
+    <!--
+      Semantic accents, shared with NaomiAccents in Compose.
+
+      These used to be a single value each, and the value matched neither theme:
+      the listening red was #E05252 against AccentListeningLight's #C5433F and
+      AccentListeningDark's #EB6B67. On a light widget background that also
+      failed WCAG AA, so the one element in the widget that has to be
+      unmistakable — "I am recording you" — was the least legible thing on it.
+      They are now per-theme and identical to the app's.
+    -->
+    <color name="naomi_listening_red">#C5433F</color>
+    <color name="naomi_success_green">#2F855A</color>
+    <color name="naomi_amber">#9A6B12</color>
 
     <!-- Widget surface tokens (light). Mirrors StitchLight* in Color.kt. -->
     <color name="widget_background">#FBF9FA</color>
     <color name="widget_surface">#F5F3F4</color>
-    <color name="widget_surface_elevated">#EFEDEE</color>
     <color name="widget_stroke">#C4C7CC</color>
     <!-- The slate accent, so the widget orb is recognisably the app's orb. -->
     <color name="widget_orb_idle">#4E5E6D</color>
@@ -27,4 +35,22 @@
     <color name="widget_text_primary">#1B1C1D</color>
     <color name="widget_text_secondary">#43474C</color>
     <color name="widget_text_tertiary">#74777C</color>
+
+    <!--
+      Theme-independent copies, for a widget the user pinned to Light or Dark.
+
+      The references above resolve against whoever inflates them, which is what
+      makes System theme track the device correctly. An explicit override needs
+      the opposite: a value that does *not* move. These are the same colours,
+      addressable by name so the provider can send a fixed one.
+    -->
+    <color name="widget_background_light">#FBF9FA</color>
+    <color name="widget_text_primary_light">#1B1C1D</color>
+    <color name="widget_text_secondary_light">#43474C</color>
+    <color name="widget_text_tertiary_light">#74777C</color>
+
+    <color name="widget_background_dark">#111318</color>
+    <color name="widget_text_primary_dark">#EDEDF0</color>
+    <color name="widget_text_secondary_dark">#9AA0AB</color>
+    <color name="widget_text_tertiary_dark">#6B7280</color>
 </resources>

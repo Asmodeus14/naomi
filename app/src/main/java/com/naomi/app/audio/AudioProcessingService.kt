@@ -82,16 +82,22 @@ class AudioProcessingService : Service() {
                 triggerHaptic(1)
                 timerJob?.cancel()
                 timerJob = serviceScope.launch {
-                    var seconds = 0
+                    // The state change is announced once. After that only the
+                    // clock moves, and a full update every second — a prefs
+                    // write, an IPC for the widget ids, three layout builds,
+                    // five PendingIntent allocations and a binder transaction
+                    // carrying every view — is a great deal of work to turn
+                    // 00:07 into 00:08.
+                    NaomiWidgetProvider.updateWidgetState(
+                        this@AudioProcessingService, WidgetState.LISTENING, "Listening", "00:00"
+                    )
+                    var seconds = 1
                     while (isActive) {
-                        val formatted = String.format(java.util.Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60)
-                        NaomiWidgetProvider.updateWidgetState(
-                            this@AudioProcessingService,
-                            WidgetState.LISTENING,
-                            "Listening",
-                            formatted
-                        )
                         delay(1000)
+                        val formatted = String.format(
+                            java.util.Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60
+                        )
+                        NaomiWidgetProvider.updateElapsed(this@AudioProcessingService, formatted)
                         seconds++
                     }
                 }

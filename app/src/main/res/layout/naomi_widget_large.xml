@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  See naomi_widget_small.xml for why the background is an ImageView layer rather
+  than the root's android:background.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_large_root"
     android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_system" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
     android:orientation="vertical"
     android:padding="18dp">
 
@@ -95,26 +110,52 @@
                 android:layout_height="match_parent"
                 android:background="@drawable/widget_orb_outer_circle" />
 
-            <TextView
+            <!-- dp, not sp: an sp glyph grows with the font scale and breaks
+                 out of the fixed 32dp container. -->
+            <ImageView
                 android:id="@+id/widget_large_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:layout_gravity="center"
-                android:includeFontPadding="false"
-                android:text="●"
-                android:textColor="@color/widget_orb_idle"
-                android:textSize="18sp" />
+                android:contentDescription="@null"
+                android:src="@drawable/widget_orb_dot" />
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/widget_large_capture_label"
-            android:layout_width="wrap_content"
+        <!--
+          Two lines, because there was only ever one and it showed the
+          *subtitle*. The state title — "Remembered", "Couldn't remember" —
+          reached this layout and had nowhere to be drawn, so the largest widget
+          was the one that told you least.
+        -->
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:layout_marginStart="10dp"
-            android:fontFamily="sans-serif-medium"
-            android:text="Tap to speak"
-            android:textColor="@color/widget_text_primary"
-            android:textSize="13sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_large_capture_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:text="Naomi"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_large_capture_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:text="Tap to speak"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Flexible spacer. FrameLayout, not View: plain View is not on the
@@ -217,4 +258,6 @@
             android:textSize="10sp" />
     </LinearLayout>
 
-</LinearLayout>
+  </LinearLayout>
+
+</FrameLayout>

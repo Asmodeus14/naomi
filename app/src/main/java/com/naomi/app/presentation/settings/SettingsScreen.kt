@@ -342,6 +342,42 @@ fun SettingsScreen(
                     ) {
                         Text("Add to Home Screen", style = MaterialTheme.typography.labelLarge)
                     }
+
+                    // Each placed widget has its own appearance, so this opens
+                    // the first one. Long-pressing a widget on the home screen
+                    // is how you reach a specific one; this is here so the
+                    // feature is discoverable at all.
+                    val placedIds = remember {
+                        android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetIds(
+                            android.content.ComponentName(
+                                context,
+                                com.naomi.app.widget.NaomiWidgetProvider::class.java
+                            )
+                        )
+                    }
+                    if (placedIds.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        context,
+                                        com.naomi.app.widget.WidgetConfigActivity::class.java
+                                    ).putExtra(
+                                        android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                        placedIds.first()
+                                    )
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Customise appearance",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             }
 

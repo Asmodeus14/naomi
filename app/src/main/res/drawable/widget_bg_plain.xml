@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Explicit Light/Dark override. White so setColorFilter can tint it to any
+  colour; no stroke, because SRC_ATOP would paint the border the same colour as
+  the fill and a one-pixel line of the same colour is not a border.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="26dp" />
+    <solid android:color="@android:color/white" />
+</shape>

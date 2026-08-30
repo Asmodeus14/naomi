@@ -461,7 +461,9 @@ continue instead of duplicating, with a dated history**, **topic timelines**,
 system clock that survive a reboot**, **spoken clock times and calendar
 handoff**, task extraction with resolved dates, search
 that reaches inside a memory's history, the knowledge tree, Markdown export,
-persisted System/Light/Dark theming, and the home-screen widget in three sizes.
+persisted System/Light/Dark theming, and the home-screen widget in three sizes
+with **per-widget appearance** — theme, opacity and content, chosen on a
+preview-driven screen and independent for every widget you place.
 
 Known limitations, stated plainly:
 
@@ -489,13 +491,19 @@ Known limitations, stated plainly:
 - Inter is specified by the design but not bundled; the app uses the platform
   sans-serif. The scale, weights and tracking are what carry the design, and
   those survive the substitution. See `theme/Type.kt`.
+- **Widget corner radius is not configurable**, and cannot usefully be:
+  launchers on Android 12+ clip every widget to their own radius. The control
+  was built and then removed after diffing screenshots of "Square" against
+  "Rounded" on a real home screen and finding them identical.
 - Compose UI tests are not written yet. Coverage is 122 unit tests over the
-  intelligence layer and 23 instrumented tests covering migrations, the capture
-  pipeline and alarm scheduling on a real device — but nothing drives the
-  screens. That gap is real: several bugs this project has shipped and fixed —
-  a crash when a subtopic id happened to match a note id, reminders silently
-  dropped because a permission was never requested — were found by driving the
-  app, not by the suite.
+  intelligence layer and 32 instrumented tests covering migrations, the capture
+  pipeline, alarm scheduling and widget rendering on a real device — but nothing
+  drives the app's screens. That gap is real: several bugs this project has
+  shipped and fixed — a crash when a subtopic id happened to match a note id,
+  reminders silently dropped because a permission was never requested — were
+  found by driving the app, not by the suite. So were two in this release: the
+  widget's subtitle vanishing at low opacity, and the widget picker showing a
+  white orb on a white background.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed and [ROADMAP.md](ROADMAP.md) for
 what is next.
