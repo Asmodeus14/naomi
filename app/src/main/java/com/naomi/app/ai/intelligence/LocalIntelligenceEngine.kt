@@ -1,7 +1,9 @@
 package com.naomi.app.ai.intelligence
 
+import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.domain.model.ExtractedEntity
 import com.naomi.app.domain.model.ExtractedKnowledge
+import com.naomi.app.domain.model.ExtractedTask
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -74,18 +76,82 @@ object LocalIntelligenceEngine {
 
         val correction = CorrectionDetector.analyze(text)
         val keyphrases = KeyphraseExtractor.extract(text)
-        val tasks = TaskExtractor.extract(text, now, zone)
+        val title = KeyphraseExtractor.generateTitle(text)
 
         return ExtractedKnowledge(
-            title = KeyphraseExtractor.generateTitle(text),
+            title = title,
             summary = generateSummary(text, correction),
             keyphrases = keyphrases,
             idea = extractIdea(text),
             decision = extractDecision(text),
-            tasks = tasks,
+            tasks = extractActions(text, title, now, zone),
             entities = extractEntities(text),
             isCorrection = correction.isCorrection
         )
+    }
+
+    /** An hour, which is what a calendar assumes when nobody says otherwise. */
+    private const val DEFAULT_EVENT_MINUTES = 60
+
+    /**
+     * Everything actionable in one thought, labelled with what to do about it.
+     *
+     * [TaskExtractor] finds work the speaker committed to. [ActionClassifier]
+     * decides whether the sentence as a whole was really a request to be
+     * interrupted or an appointment — the two outcomes that reach outside the
+     * app, and so the two that have to be right.
+     */
+    private fun extractActions(
+        text: String,
+        title: String,
+        now: LocalDateTime,
+        zone: ZoneId
+    ): List<ExtractedTask> {
+        val extracted = TaskExtractor.extract(text, now, zone)
+        val parsed = TemporalParser.parse(text, now, zone)
+
+        return when (ActionClassifier.classify(text, parsed)) {
+            ActionIntent.REMINDER ->
+                // "Wake me at 7" carries no task trigger, so there may be
+                // nothing to relabel — in which case the sentence is itself the
+                // reminder.
+                if (extracted.isEmpty()) {
+                    listOf(
+                        ExtractedTask(
+                            title = title,
+                            deadline = parsed?.displayText,
+                            dueAt = parsed?.dueAt,
+                            kind = TaskEntity.KIND_REMINDER,
+                            hasExactTime = parsed?.hasExplicitTime == true
+                        )
+                    )
+                } else {
+                    extracted.map { it.copy(kind = TaskEntity.KIND_REMINDER) }
+                }
+
+            ActionIntent.EVENT -> {
+                val start = parsed?.dueAt
+                if (start == null) {
+                    extracted
+                } else {
+                    val minutes = TemporalParser.parseDuration(text) ?: DEFAULT_EVENT_MINUTES
+                    listOf(
+                        ExtractedTask(
+                            title = title,
+                            deadline = parsed.displayText,
+                            dueAt = start,
+                            kind = TaskEntity.KIND_EVENT,
+                            endAt = start + minutes * 60_000L,
+                            hasExactTime = parsed.hasExplicitTime
+                        )
+                    )
+                }
+            }
+
+            // A task list is the right home for both, and a memory with nothing
+            // actionable in it simply has no rows.
+            ActionIntent.TASK, ActionIntent.MEMORY -> extracted
+        }
     }
 
     /**

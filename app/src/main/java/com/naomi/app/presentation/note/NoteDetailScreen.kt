@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.History
@@ -35,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.naomi.app.calendar.CalendarHandoff
+import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.presentation.components.NaomiEmptyState
 import com.naomi.app.presentation.components.NaomiPill
 import com.naomi.app.presentation.components.rememberDueLabel
@@ -511,6 +514,28 @@ fun NoteDetailScreen(
                                                     }
                                                 }
                                             }
+
+                                            // An occasion captured from the
+                                            // widget or an ambient session
+                                            // cannot open the calendar at the
+                                            // time — Android 10+ blocks an
+                                            // activity start from the
+                                            // background, so it would silently
+                                            // do nothing. It waits here instead.
+                                            //
+                                            // Hidden entirely when the device
+                                            // has no calendar app — some ROMs
+                                            // ship without one, and an offer
+                                            // that can only fail is worse than
+                                            // no offer.
+                                            if (task.kind == TaskEntity.KIND_EVENT &&
+                                                task.calendarAddedAt == null &&
+                                                remember(task.id) { CalendarHandoff.isAvailable(context, task) }
+                                            ) {
+                                                AddToCalendarRow(
+                                                    onClick = { viewModel.addToCalendar(task) }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -677,3 +702,35 @@ fun NoteDetailScreen(
     }
 }
 
+
+/**
+ * The one-tap way to put an occasion in the calendar.
+ *
+ * Only shown for an event Naomi could not hand over at the time it was heard —
+ * a widget capture or an ambient session, where Android blocks starting another
+ * app's screen from the background. Deliberately quiet: it is an offer, and the
+ * memory is already saved whether or not anyone takes it.
+ */
+@Composable
+private fun AddToCalendarRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 30.dp, top = 2.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.CalendarMonth,
+            contentDescription = null,
+            tint = LocalNaomiAccents.current.idea,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = "Add to calendar",
+            style = MaterialTheme.typography.labelMedium,
+            color = LocalNaomiAccents.current.idea
+        )
+    }
+}

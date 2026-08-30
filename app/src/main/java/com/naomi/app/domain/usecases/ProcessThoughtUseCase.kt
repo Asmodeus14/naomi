@@ -7,6 +7,7 @@ import com.naomi.app.ai.intelligence.TranscriptNormalizer
 import com.naomi.app.ai.speech.Transcript
 import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.data.database.entities.NoteEntity
+import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.domain.intelligence.IntelligenceProvider
 import com.naomi.app.domain.model.ExtractedKnowledge
 import com.naomi.app.domain.model.FailureReason
@@ -76,7 +77,7 @@ class ProcessThoughtUseCase(
         }
 
         val analysed = try {
-            segments.map { segment -> segment to analyse(segment, knownTopics) }
+            segments.map { segment -> segment to withoutBorrowedCommitments(analyse(segment, knownTopics), source) }
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed", e)
             emit(ProcessingStage.Failed(FailureReason.COULD_NOT_UNDERSTAND, e))
@@ -166,6 +167,33 @@ class ProcessThoughtUseCase(
             Log.w(TAG, "Could not load vocabulary; keeping the transcript as heard", e)
             clean
         }
+    }
+
+    /**
+     * Stops a shared article from putting things in the user's calendar.
+     *
+     * The classifier reads intent from the words, and a news piece saying "the
+     * hearing is tomorrow at 10 AM" has exactly the shape of an appointment. It
+     * is not one: nobody made a commitment, and Naomi opening a calendar screen
+     * or setting an alarm because of a page someone read would be acting on a
+     * stranger's sentence.
+     *
+     * Downgraded rather than dropped, because a shared page genuinely can
+     * contain something worth doing — it just cannot contain something the user
+     * agreed to be interrupted by.
+     */
+    private fun withoutBorrowedCommitments(
+        knowledge: ExtractedKnowledge,
+        source: String
+    ): ExtractedKnowledge {
+        if (source != MemoryEntryEntity.SOURCE_SHARED) return knowledge
+        if (knowledge.tasks.none { it.kind != TaskEntity.KIND_TASK }) return knowledge
+
+        return knowledge.copy(
+            tasks = knowledge.tasks.map {
+                it.copy(kind = TaskEntity.KIND_TASK, endAt = null, hasExactTime = false)
+            }
+        )
     }
 
     /**

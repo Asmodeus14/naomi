@@ -285,6 +285,9 @@ class KnowledgeRepositoryImpl(
                             title = task.title,
                             deadline = task.deadline,
                             dueAt = task.dueAt,
+                            kind = task.kind,
+                            endAt = task.endAt,
+                            hasExactTime = task.hasExactTime,
                             isCompleted = false,
                             createdAt = now
                         )
@@ -445,6 +448,14 @@ class KnowledgeRepositoryImpl(
     }
 
     override fun getTasksForNoteFlow(noteId: Long): Flow<List<TaskEntity>> = taskDao.getTasksForNoteFlow(noteId)
+
+    override suspend fun getTasksForNote(noteId: Long): List<TaskEntity> = withContext(Dispatchers.IO) {
+        taskDao.getTasksForNote(noteId)
+    }
+
+    override suspend fun markCalendarOffered(taskId: Long) = withContext(Dispatchers.IO) {
+        taskDao.markCalendarOffered(taskId, System.currentTimeMillis())
+    }
 
     override fun getPendingTasksFlow(): Flow<List<TaskEntity>> = taskDao.getPendingTasksFlow()
 

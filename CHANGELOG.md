@@ -31,7 +31,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is already there. There are now instrumented tests proving an upgrade from
   every prior version keeps existing memories.
 
+- **Naomi can tell the time.** The parser was date-only: "at 6", "7 PM" and
+  "5:30" all resolved to nothing, and every due date landed on a hardcoded 09:00
+  or 19:00 — so "remind me tomorrow at 6" produced a reminder nine hours early,
+  which is worse than no reminder because it is silently wrong. It now
+  understands clock times, explicit calendar dates ("September 4", "on the 4th"),
+  durations, and the composition of a date with a time.
+- **Reminders are exact when you were.** "Remind me at 6 PM" now gets an exact
+  alarm; "by Friday", whose 09:00 was chosen by the parser, still gets an inexact
+  one. This is the one new permission, requested at the first reminder that needs
+  it rather than at launch. Refusing it falls back to the old behaviour.
+- **Events go to your calendar**, by handing them to your own calendar app
+  pre-filled rather than by taking read access to every appointment you have ever
+  had. No calendar permission, no manifest change.
+- **Naomi decides what kind of thing you said**, without ever asking. There is no
+  mode to pick.
+- Spelled-out counts above twelve now parse. "In thirteen days" and everything
+  from fifteen up silently lost its deadline.
+
 ### Notes on what this deliberately will not do
+
+- **The hour is not Naomi's to invent.** "Meeting tomorrow" stays a memory rather
+  than becoming a 9 AM appointment.
+- **A pattern is not an appointment.** "The meeting is usually at 6" has every
+  ingredient of a calendar event and is remembered as a fact, which is why the
+  habitual check runs before anything is scored.
+- **A hedge is respected.** "Rahul is coming tomorrow around 6" sets no alarm.
+  Turning someone's deliberate vagueness into a precision they get woken by is
+  not a feature.
+- **A shared article cannot put things in your calendar.** A page saying "the
+  hearing is tomorrow at 10 AM" has exactly the shape of an appointment without
+  anyone having agreed to anything.
+- **A bare number is not a time.** Dictation is full of "version 2" and
+  "sprint 3".
 - A correction needs a word to *sound* like a known term **and** be corroborated
   — by nearby related words, or by the recogniser having offered it. Context
   alone can never rewrite anything.

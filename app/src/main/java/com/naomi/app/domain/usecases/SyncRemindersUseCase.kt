@@ -19,17 +19,28 @@ class SyncRemindersUseCase(
     private val scheduler: ReminderScheduler
 ) {
 
-    /** @return how many reminders are now waiting to fire. */
-    suspend operator fun invoke(): Int {
+    /**
+     * @param scheduled how many reminders are now waiting to fire
+     * @param wantsExactPermission whether something is waiting that the user
+     *        gave a real clock time for, which the system will currently deliver
+     *        only approximately. Reported rather than acted on: the moment of
+     *        asking for a permission belongs to the UI, not to a use case.
+     */
+    data class Result(val scheduled: Int, val wantsExactPermission: Boolean)
+
+    suspend operator fun invoke(): Result {
         val tasks = try {
             repository.getPendingTasks()
         } catch (e: Exception) {
             Log.e(TAG, "Could not read tasks; leaving existing alarms alone", e)
-            return 0
+            return Result(0, false)
         }
 
         val now = System.currentTimeMillis()
+        val canBeExact = scheduler.canScheduleExact()
         var scheduled = 0
+        var wantsExact = false
+
         for (task in tasks) {
             val dueAt = task.dueAt
             // A deadline already in the past is not a reminder, it is a
@@ -40,9 +51,10 @@ class SyncRemindersUseCase(
             } else {
                 scheduler.schedule(task)
                 scheduled++
+                if (!canBeExact && scheduler.wantsExact(task)) wantsExact = true
             }
         }
-        return scheduled
+        return Result(scheduled, wantsExact)
     }
 
     private companion object {

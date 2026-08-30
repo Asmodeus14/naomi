@@ -1,8 +1,11 @@
 package com.naomi.app.presentation.home
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naomi.app.ai.speech.Transcript
+import com.naomi.app.calendar.CalendarHandoff
 import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.presentation.components.*
 import com.naomi.app.presentation.theme.NaomiShapes
@@ -71,6 +75,30 @@ fun HomeScreen(
                 context, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
             if (!granted) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Naomi cannot grant itself an exact alarm; this one opens a system screen
+    // rather than a dialog. Declining is a real answer and leaves the inexact
+    // alarm already scheduled, so nothing is lost by walking away from it.
+    LaunchedEffect(Unit) {
+        viewModel.exactAlarmNeeded.collect {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@collect
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                        .setData(Uri.fromParts("package", context.packageName, null))
+                )
+            }
+        }
+    }
+
+    // The calendar app writes the event, in its own UI, with a save button the
+    // user presses. Naomi holds no calendar permission and never will.
+    LaunchedEffect(Unit) {
+        viewModel.calendarHandoff.collect { event ->
+            val intent = CalendarHandoff.intentFor(event) ?: return@collect
+            runCatching { context.startActivity(intent) }
         }
     }
 

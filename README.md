@@ -85,7 +85,16 @@ That prints the complete permission list of the shipped APK:
 | `POST_NOTIFICATIONS` | Reminders you asked for out loud, and the notification that foreground services legally require |
 | `VIBRATE` | Capture start/stop haptics |
 | `RECEIVE_BOOT_COMPLETED` | Alarms are dropped on reboot; without this a reminder set for Friday is lost by a restart on Wednesday |
+| `SCHEDULE_EXACT_ALARM` | Only for a time you actually said. "Remind me at 6 PM" delivered any time before seven is a broken promise; "by Friday" resolved to a 09:00 Naomi chose still gets an inexact alarm. Asked for at the first reminder that needs it, never at launch, and refusing it leaves the inexact behaviour Naomi had until now. |
 | `com.google.android.apps.aicore.service.BIND_SERVICE` | Binder IPC to the system AICore service for Gemini Nano. Not a network permission — it binds to a local system service. |
+
+**There is no calendar permission.** Naomi puts events in your calendar by handing
+them to *your* calendar app, pre-filled, with a save button you press yourself.
+`READ_CALENDAR` and `WRITE_CALENDAR` are not a fee for writing one row — they are
+read access to every appointment you have ever had, and no feature is worth that
+on an app whose whole claim is that it does not collect things about you. The cost
+is that Naomi cannot see whether you saved the event, so it records only that it
+offered.
 
 **There is no `INTERNET` permission.** Without it the app cannot open a socket at
 all. Telemetry is not merely absent; it is not expressible. There is no analytics
@@ -244,6 +253,36 @@ a tomato seedling is.
 The vocabulary never leaves the device, and adds no permission and no network
 call. It is an unusually precise description of what you work on and who you
 know.
+
+### Deciding what to do about it
+
+You never pick a mode. There is no "calendar mode" button and no dialog asking
+whether you meant a reminder. You talk, and
+[`ActionClassifier.kt`](app/src/main/java/com/naomi/app/ai/intelligence/ActionClassifier.kt)
+works out whether that was something to remember, list, schedule, or be
+interrupted by.
+
+Dates and times are resolved against your device's own clock and time zone —
+nothing is ever hardcoded — and the two are found separately and composed,
+because that is how they are spoken. "Tomorrow at 6" is two facts.
+
+Being a memory is the floor and the default, not a failure. Everything else has
+a cost when it fires wrongly, so the classifier is written as a list of reasons
+*not* to escalate:
+
+| You said | Naomi does |
+|---|---|
+| "Remind me tomorrow at 6 PM to call Rahul" | Reminder, exact alarm at 18:00 |
+| "Meeting tomorrow at 6 with the team" | Opens your calendar, pre-filled |
+| "I need to file the taxes by Friday" | Task, inexact alarm at the parser's 09:00 |
+| "The meeting is **usually** at 6" | Memory. A pattern is not an appointment. |
+| "Rahul is coming tomorrow **around** 6" | Memory. You did not commit to a time. |
+| "Meeting tomorrow" | Memory. The hour is not Naomi's to invent. |
+
+A bare hour is a guess and is treated as one: "at 6" is read as the evening,
+because someone who means six in the morning says "6 AM". Whether a meridiem was
+actually spoken is recorded, so nothing downstream mistakes an interpretation for
+a fact.
 
 ---
 
@@ -419,7 +458,8 @@ What works and is verified on a device: capture by voice or text, title and topi
 extraction, topic reuse across sessions, subtopic nesting, **memories that
 continue instead of duplicating, with a dated history**, **topic timelines**,
 **Ask Naomi**, **sharing text and links in from other apps**, **reminders on the
-system clock that survive a reboot**, task extraction with resolved dates, search
+system clock that survive a reboot**, **spoken clock times and calendar
+handoff**, task extraction with resolved dates, search
 that reaches inside a memory's history, the knowledge tree, Markdown export,
 persisted System/Light/Dark theming, and the home-screen widget in three sizes.
 
@@ -434,18 +474,28 @@ Known limitations, stated plainly:
   memory under the same topic. That threshold is deliberately strict: wrongly
   merging two subjects buries one inside the other's history where you will never
   find it, while wrongly splitting leaves two entries you can see.
-- Reminders are **inexact**. Measured on device, Android gives them a one-hour
-  window. The 09:00 in "remind me tomorrow" was chosen by the parser, not by you,
-  so asking for the restricted exact-alarm permission would take something in
-  exchange for precision nobody specified. See `ReminderScheduler`.
+- **A reminder is only exact if you said an exact time.** "Remind me tomorrow at
+  6 PM" gets an exact alarm. "By Friday" gets an inexact one with a window of up
+  to an hour, because the 09:00 was chosen by the parser and not by you, and
+  being punctual to the minute about a time nobody specified is false precision.
+  If you refuse the exact-alarm permission — Android denies it by default —
+  everything falls back to the inexact behaviour rather than failing. See
+  `ReminderScheduler`.
+- **Naomi will not invent a time.** "Meeting tomorrow" becomes a memory, not a
+  9 AM appointment. Neither does it act on a time you hedged: "Rahul is coming
+  tomorrow around 6" and "the meeting is usually at 6" are remembered and
+  nothing else. That is deliberate, and it means some things you might have
+  wanted scheduled are not.
 - Inter is specified by the design but not bundled; the app uses the platform
   sans-serif. The scale, weights and tracking are what carry the design, and
   those survive the substitution. See `theme/Type.kt`.
-- Instrumented UI tests are not written yet; coverage is 56 unit tests over the
-  intelligence layer plus manual device verification. That gap is real: several
-  bugs this project has shipped and fixed — a crash when a subtopic id happened
-  to match a note id, reminders silently dropped because a permission was never
-  requested — were found by driving the app, not by the suite.
+- Compose UI tests are not written yet. Coverage is 122 unit tests over the
+  intelligence layer and 23 instrumented tests covering migrations, the capture
+  pipeline and alarm scheduling on a real device — but nothing drives the
+  screens. That gap is real: several bugs this project has shipped and fixed —
+  a crash when a subtopic id happened to match a note id, reminders silently
+  dropped because a permission was never requested — were found by driving the
+  app, not by the suite.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed and [ROADMAP.md](ROADMAP.md) for
 what is next.

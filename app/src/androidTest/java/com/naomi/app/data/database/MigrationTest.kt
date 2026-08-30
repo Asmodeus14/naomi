@@ -41,12 +41,12 @@ class MigrationTest {
     /**
      * The whole chain, on a database with real rows in it.
      *
-     * Running 2 -> 4 in one go rather than testing each step in isolation is
-     * deliberate: users upgrade from whatever version they happen to be on, and
-     * a pair of migrations that each pass alone can still fail in sequence.
+     * Running the whole chain in one go rather than testing each step in
+     * isolation is deliberate: users upgrade from whatever version they happen
+     * to be on, and migrations that each pass alone can still fail in sequence.
      */
     @Test
-    fun migrates_2_to_5_keeping_existing_memories() {
+    fun migrates_2_to_6_keeping_existing_memories() {
         helper.createDatabase(TEST_DB, 2).use { db ->
             db.execSQL(
                 "INSERT INTO topics (id, name, normalizedName, parentId, depth, createdAt, updatedAt) " +
@@ -58,13 +58,18 @@ class MigrationTest {
                     "VALUES (1, 1, NULL, 'Ring Buffer', 'a summary', 'raw words', " +
                     "'clean words', NULL, NULL, 0, 1000, 1000)"
             )
+            db.execSQL(
+                "INSERT INTO tasks (id, noteId, topicId, title, deadline, dueAt, isCompleted, createdAt) " +
+                    "VALUES (1, 1, 1, 'Profile the fence waits', 'Friday', 2000, 0, 1000)"
+            )
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 5, true,
+            TEST_DB, 6, true,
             NaomiDatabase.MIGRATION_2_3,
             NaomiDatabase.MIGRATION_3_4,
-            NaomiDatabase.MIGRATION_4_5
+            NaomiDatabase.MIGRATION_4_5,
+            NaomiDatabase.MIGRATION_5_6
         )
 
         // The note survived, with its words intact.
@@ -90,6 +95,17 @@ class MigrationTest {
             assertTrue(c.moveToFirst())
             assertEquals(0, c.getInt(0))
         }
+
+        // v5 -> v6 splits tasks into three kinds. An existing row must land on
+        // the behaviour it already had: a plain task whose hour Naomi inferred,
+        // and therefore an inexact alarm rather than a newly exact one.
+        db.query("SELECT kind, hasExactTime, endAt, calendarAddedAt FROM tasks WHERE id = 1").use { c ->
+            assertTrue("the existing task was lost in migration", c.moveToFirst())
+            assertEquals("TASK", c.getString(0))
+            assertEquals(0, c.getInt(1))
+            assertTrue(c.isNull(2))
+            assertTrue(c.isNull(3))
+        }
     }
 
     /**
@@ -102,9 +118,10 @@ class MigrationTest {
     fun vocabulary_normalized_is_unique_after_migration() {
         helper.createDatabase(TEST_DB, 3).close()
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 5, true,
+            TEST_DB, 6, true,
             NaomiDatabase.MIGRATION_3_4,
-            NaomiDatabase.MIGRATION_4_5
+            NaomiDatabase.MIGRATION_4_5,
+            NaomiDatabase.MIGRATION_5_6
         )
 
         db.execSQL(
@@ -123,8 +140,8 @@ class MigrationTest {
 
     /** A fresh install must land on the current schema without any migration. */
     @Test
-    fun creates_version_5_from_scratch() {
-        helper.createDatabase(TEST_DB, 5).use { db ->
+    fun creates_version_6_from_scratch() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
             db.query("SELECT COUNT(*) FROM vocabulary").use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals(0, c.getInt(0))

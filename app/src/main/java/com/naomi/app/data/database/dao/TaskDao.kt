@@ -55,4 +55,11 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET isCompleted = :isCompleted WHERE id = :id")
     suspend fun setTaskCompleted(id: Long, isCompleted: Boolean)
+
+    /**
+     * Naomi opened a pre-filled calendar screen for this event. Not the same as
+     * the event existing — Naomi holds no calendar permission and cannot check.
+     */
+    @Query("UPDATE tasks SET calendarAddedAt = :at WHERE id = :id")
+    suspend fun markCalendarOffered(id: Long, at: Long)
 }

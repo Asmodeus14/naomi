@@ -77,7 +77,10 @@ object TaskExtractor {
                     ExtractedTask(
                         title = title,
                         deadline = date?.displayText,
-                        dueAt = date?.dueAt
+                        dueAt = date?.dueAt,
+                        // Per clause, not per transcript: only this task's own
+                        // date can say whether its time was actually spoken.
+                        hasExactTime = date?.hasExplicitTime == true
                     )
                 )
             }
@@ -107,9 +110,13 @@ object TaskExtractor {
             }
         }
 
-        // Remove any date phrase that survived inside the clause.
+        // Remove any date or time phrase that survived inside the clause.
+        // Back to front, so removing one span does not shift the next.
         TemporalParser.parse(title)?.let { parsed ->
-            title = title.removeRange(parsed.matchRange).trim()
+            for (range in parsed.ranges.asReversed()) {
+                title = title.removeRange(range)
+            }
+            title = title.trim()
         }
 
         // Drop prepositions left dangling by the removals above, which is what

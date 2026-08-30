@@ -4,26 +4,38 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.naomi.app.data.database.entities.TaskEntity
 
 /**
  * Puts a task's deadline on the system clock.
  *
- * Alarms are deliberately **inexact**. `setAndAllowWhileIdle` fires through Doze
- * without `SCHEDULE_EXACT_ALARM`, which the app therefore does not request.
+ * ## Why there are two kinds of alarm here
  *
- * Measured on device, the system gives these a one-hour window: a reminder for
- * 09:00 can arrive any time up to 10:00. That is a real cost and it is worth
- * being clear about — but the alternative is false precision. A deadline here
- * comes from someone saying "tomorrow", and the 09:00 was chosen by
- * TemporalParser, not by the user. Requesting a restricted permission to be
- * punctual to the minute about a time nobody specified would take something
- * from the user in exchange for nothing, and would need a settings screen that
- * §42 says should not exist.
+ * For most of Naomi's life every alarm was **inexact**. `setAndAllowWhileIdle`
+ * fires through Doze without `SCHEDULE_EXACT_ALARM`, and the system gives it a
+ * window of up to an hour — a reminder for 09:00 can arrive at 10:00. That was
+ * the right trade, because a deadline came from someone saying "tomorrow" and
+ * the 09:00 was chosen by [com.naomi.app.ai.intelligence.TemporalParser], not by
+ * the user. Being punctual to the minute about a time nobody specified is false
+ * precision, and asking for a restricted permission to achieve it would take
+ * something real in exchange for nothing.
  *
- * If Naomi ever parses a spoken clock time — "the meeting at 3pm" — that is the
- * point at which exact alarms would start being worth their cost.
+ * The old comment here said this would change the day Naomi could parse a spoken
+ * clock time. It now can, so it has. When the user said "6 PM", an hour of slop
+ * is a broken promise rather than a reasonable approximation, and the permission
+ * buys something they actually asked for.
+ *
+ * The distinction is carried by [TaskEntity.hasExactTime] rather than inferred
+ * here, because reminders are re-scheduled from the database after a reboot —
+ * long after the sentence that produced them is gone.
+ *
+ * ## When the permission is refused
+ *
+ * Apps targeting SDK 34+ are denied `SCHEDULE_EXACT_ALARM` by default. Falling
+ * back to an inexact alarm has to be silent and correct: a late reminder is a
+ * disappointment, and a crash or a dropped one is a broken product.
  *
  * The task id is the request code, so scheduling the same task twice replaces
  * its alarm rather than stacking a second one.
@@ -33,16 +45,48 @@ class ReminderScheduler(private val context: Context) {
     private val alarmManager: AlarmManager? =
         context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
 
+    /**
+     * Whether the system will currently honour an exact alarm.
+     *
+     * Checked at every schedule rather than cached: the user can revoke this in
+     * Settings while the app is running, and a stale `true` means silently
+     * throwing [SecurityException] on something they were promised.
+     */
+    fun canScheduleExact(): Boolean {
+        val manager = alarmManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            manager.canScheduleExactAlarms()
+        } else {
+            // Before Android 12 there was no permission to be denied.
+            true
+        }
+    }
+
+    /** Whether this task is one the user would notice arriving an hour late. */
+    fun wantsExact(task: TaskEntity): Boolean = task.hasExactTime && task.dueAt != null
+
     fun schedule(task: TaskEntity) {
         val dueAt = task.dueAt ?: return
         val manager = alarmManager ?: return
+        val pending = pendingIntent(task, flags = PendingIntent.FLAG_UPDATE_CURRENT)
 
+        val exact = wantsExact(task) && canScheduleExact()
         try {
-            manager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                dueAt,
-                pendingIntent(task, flags = PendingIntent.FLAG_UPDATE_CURRENT)
-            )
+            if (exact) {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+            } else {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+            }
+        } catch (e: SecurityException) {
+            // The permission was revoked between the check above and this call.
+            // A late reminder is far better than none, so drop to inexact rather
+            // than letting the task lose its alarm entirely.
+            Log.w(TAG, "Exact alarms were refused; falling back to an inexact one", e)
+            try {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+            } catch (fallback: Exception) {
+                Log.w(TAG, "Could not schedule a reminder for task ${task.id}", fallback)
+            }
         } catch (e: Exception) {
             // Nothing the user can do about it and nothing worth interrupting
             // them for; the task itself is still saved and still visible.

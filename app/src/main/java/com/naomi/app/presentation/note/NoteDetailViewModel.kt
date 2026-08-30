@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.naomi.app.NaomiApp
+import com.naomi.app.calendar.CalendarHandoff
+import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.data.database.entities.TopicEntity
 import com.naomi.app.domain.model.NoteDetail
 import kotlinx.coroutines.flow.*
@@ -72,6 +74,30 @@ class NoteDetailViewModel(application: Application) : AndroidViewModel(applicati
             } catch (e: Exception) {
                 Log.e(TAG, "Could not update task $taskId", e)
                 _uiState.value = loaded
+            }
+        }
+    }
+
+    /**
+     * Opens the user's calendar on a pre-filled new-event screen.
+     *
+     * The row that calls this only appears for an occasion Naomi could not hand
+     * over at the time, because it was captured from the widget or an ambient
+     * session and Android 10+ blocks an activity start from the background.
+     *
+     * Marked as offered before it is known to have worked, because that is the
+     * only thing Naomi can honestly claim: it holds no calendar permission and
+     * cannot see whether the user pressed save.
+     */
+    fun addToCalendar(task: TaskEntity) {
+        val intent = CalendarHandoff.intentFor(task) ?: return
+        viewModelScope.launch {
+            try {
+                getApplication<NaomiApp>().startActivity(intent)
+                repository.markCalendarOffered(task.id)
+                _uiState.value = fetch(task.noteId)
+            } catch (e: Exception) {
+                Log.w(TAG, "No calendar app could take the event", e)
             }
         }
     }

@@ -44,6 +44,15 @@ data class ExtractedTask(
     val deadline: String? = null,
     /** The resolved instant, for sorting, bucketing and overdue detection. */
     val dueAt: Long? = null,
+    /** Work to do, an interruption asked for, or an occasion. See [TaskEntity]. */
+    val kind: String = TaskEntity.KIND_TASK,
+    /** When an occasion finishes. Only set for an event. */
+    val endAt: Long? = null,
+    /**
+     * Whether the speaker actually said a clock time. An exact alarm is worth
+     * its cost for "6 PM" and is an imposition for a 09:00 Naomi picked.
+     */
+    val hasExactTime: Boolean = false,
     val isCompleted: Boolean = false
 )
 

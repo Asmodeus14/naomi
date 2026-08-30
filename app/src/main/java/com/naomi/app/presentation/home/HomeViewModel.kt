@@ -8,8 +8,10 @@ import com.naomi.app.NaomiApp
 import com.naomi.app.ai.intelligence.SharedTextParser
 import com.naomi.app.ai.speech.SpeechState
 import com.naomi.app.ai.speech.Transcript
+import com.naomi.app.calendar.CalendarHandoff
 import com.naomi.app.data.database.entities.MemoryEntryEntity
 import com.naomi.app.data.database.entities.NoteEntity
+import com.naomi.app.data.database.entities.TaskEntity
 import com.naomi.app.data.database.entities.TopicEntity
 import com.naomi.app.domain.model.FailureReason
 import com.naomi.app.domain.model.ProcessingStage
@@ -47,6 +49,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val _reminderScheduled = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val reminderScheduled: SharedFlow<Unit> = _reminderScheduled.asSharedFlow()
+
+    /**
+     * Fires when a reminder was set for a time the user actually spoke, and the
+     * system will currently deliver it only approximately.
+     *
+     * The same reasoning as above, one step further: apps targeting SDK 34+ are
+     * denied `SCHEDULE_EXACT_ALARM` by default, so "remind me at 6 PM" would
+     * arrive any time before seven. Asked for at the first moment it means
+     * something and never at launch. Declining leaves an inexact alarm, which is
+     * the behaviour Naomi had for its entire life until now.
+     */
+    private val _exactAlarmNeeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val exactAlarmNeeded: SharedFlow<Unit> = _exactAlarmNeeded.asSharedFlow()
+
+    /**
+     * Fires with an occasion Naomi understood well enough to offer to the
+     * calendar.
+     *
+     * Emitted to the screen rather than launched from here, because the handoff
+     * starts another app's activity and Android 10+ blocks that from the
+     * background. A view model has no way to know whether it is being observed.
+     */
+    private val _calendarHandoff = MutableSharedFlow<TaskEntity>(extraBufferCapacity = 1)
+    val calendarHandoff: SharedFlow<TaskEntity> = _calendarHandoff.asSharedFlow()
 
     private val _captureState = MutableStateFlow<CaptureUiState>(CaptureUiState.Idle)
     val captureState: StateFlow<CaptureUiState> = _captureState.asStateFlow()
@@ -192,15 +218,45 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     // cheap and cannot leave a task half-scheduled.
                     viewModelScope.launch {
                         try {
-                            if (app.syncRemindersUseCase() > 0) _reminderScheduled.emit(Unit)
+                            val result = app.syncRemindersUseCase()
+                            if (result.scheduled > 0) _reminderScheduled.emit(Unit)
+                            if (result.wantsExactPermission) _exactAlarmNeeded.emit(Unit)
                         } catch (e: Exception) {
                             Log.e(TAG, "Could not schedule reminders", e)
                         }
+                        offerToCalendar(note)
                     }
                 }
             }
 
             is ProcessingStage.Failed -> failWith(stage.reason)
+        }
+    }
+
+    /**
+     * Offers an occasion to the user's calendar, once.
+     *
+     * Only for a memory that produced an [TaskEntity.KIND_EVENT] row, which
+     * [com.naomi.app.ai.intelligence.ActionClassifier] only creates when someone
+     * named an occasion *and* a clock time and did not hedge it. Anything short
+     * of that stays a memory and no calendar screen appears — the alternative is
+     * an app that opens Google Calendar because you mentioned lunch.
+     */
+    private suspend fun offerToCalendar(note: NoteEntity) {
+        try {
+            val event = knowledgeRepository.getTasksForNote(note.id)
+                .firstOrNull { it.kind == TaskEntity.KIND_EVENT && it.calendarAddedAt == null }
+                ?: return
+            if (!CalendarHandoff.isAvailable(app, event)) return
+
+            // Marked before the screen opens, not after. Naomi has no calendar
+            // permission and cannot see whether the event was saved, so the only
+            // honest thing this records is that it offered — and offering twice
+            // for one sentence would be worse than not offering again.
+            knowledgeRepository.markCalendarOffered(event.id)
+            _calendarHandoff.emit(event)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not offer the event to a calendar", e)
         }
     }
 

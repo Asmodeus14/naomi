@@ -57,6 +57,16 @@ interface KnowledgeRepository {
     suspend fun deleteNote(noteId: Long)
 
     fun getTasksForNoteFlow(noteId: Long): Flow<List<TaskEntity>>
+    suspend fun getTasksForNote(noteId: Long): List<TaskEntity>
+
+    /**
+     * Records that Naomi opened a calendar screen pre-filled with this event.
+     *
+     * Deliberately not "added": Naomi holds no calendar permission and cannot
+     * see whether the user pressed save. What it knows is that it offered, and
+     * that is enough to stop it offering the same event twice.
+     */
+    suspend fun markCalendarOffered(taskId: Long)
     fun getPendingTasksFlow(): Flow<List<TaskEntity>>
 
     /** Everything still outstanding. Used to reconcile reminders with reality. */

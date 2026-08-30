@@ -21,7 +21,7 @@ import com.naomi.app.data.database.entities.*
         SettingEntity::class,
         VocabularyEntity::class
     ],
-    version = 5,
+    version = 6,
     // Schemas are checked in so migrations can be tested against them, and so a
     // reviewer can see exactly what changed between versions.
     exportSchema = true
@@ -272,6 +272,29 @@ abstract class NaomiDatabase : RoomDatabase() {
         }
 
         /**
+         * Lets a task say what kind of thing it is.
+         *
+         * Naomi can now hear a clock time, which splits one row type into
+         * three: work to do, an interruption the user asked for, and an
+         * occasion. `hasExactTime` is stored rather than recomputed because
+         * reminders are re-scheduled from the database after a reboot, long
+         * after the sentence that produced them is gone — and it is the field
+         * that decides whether an alarm is exact.
+         *
+         * Four ADD COLUMNs, no table rebuild. The defaults matter: every
+         * existing row is a plain task whose time Naomi inferred, which is
+         * exactly what the old behaviour was.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `kind` TEXT NOT NULL DEFAULT 'TASK'")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `endAt` INTEGER")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `hasExactTime` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `calendarAddedAt` INTEGER")
+            }
+        }
+
+        /**
          * Turns on cascade enforcement. The `ON DELETE` rules declared on these
          * entities are inert unless SQLite is told to honour them, and the
          * pragma resets on every connection, so it belongs in `onOpen`.
@@ -292,7 +315,10 @@ abstract class NaomiDatabase : RoomDatabase() {
                     NaomiDatabase::class.java,
                     "naomi_knowledge.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                        MIGRATION_4_5, MIGRATION_5_6
+                    )
                     .addCallback(enforceForeignKeys)
                     // Deliberately no fallbackToDestructiveMigration. In an app
                     // whose whole promise is remembering things, a failed upgrade

@@ -18,12 +18,21 @@
       Alarms do not survive a reboot, so without this a reminder set on Tuesday
       for Friday is lost by a restart on Wednesday — silently, with the task
       still sitting in the app looking handled.
-
-      Note what is *not* here: SCHEDULE_EXACT_ALARM. Naomi's deadlines come from
-      phrases like "by Friday", not from a time the user set to the minute, so
-      inexact alarms are the honest fit. See ReminderScheduler.
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!--
+      Only meaningful once Naomi could hear a clock time, which it now can.
+      "Remind me at 6 PM" delivered any time before seven is a broken promise;
+      "by Friday" resolved to a 09:00 Naomi chose is not, and still gets an
+      inexact alarm. The permission is requested at the first reminder that
+      actually needs it, never at launch, and being refused leaves the inexact
+      behaviour Naomi had until now. See ReminderScheduler.
+
+      This is the only permission this work adds. The calendar integration adds
+      none: Naomi hands the event to the user's own calendar app rather than
+      taking read access to every appointment they have ever had.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!--
       Network permissions are stripped in src/offline/AndroidManifest.xml, which
