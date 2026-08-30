@@ -73,7 +73,7 @@ check it yourself in under a minute:
 
 ```bash
 ./gradlew assembleOfflineRelease
-aapt2 dump permissions app/build/outputs/apk/offline/release/app-offline-release-unsigned.apk
+aapt2 dump permissions app/build/outputs/apk/offline/release/app-offline-release.apk
 ```
 
 That prints the complete permission list of the shipped APK:
@@ -284,6 +284,28 @@ design exists to prevent. If a stage cannot be reported honestly, it is not show
 
 ---
 
+## Install
+
+Naomi is distributed as a signed APK on the
+[Releases](https://github.com/Asmodeus14/naomi/releases) page. It is not on Google
+Play. Download the `.apk`, open it on your phone, and allow the install when
+Android asks — that prompt is what sideloading looks like.
+
+Every release ships a `SHA256SUMS.txt` so you can check you got the file the build
+produced, and you can confirm the central privacy claim on the exact binary you
+downloaded rather than on this README:
+
+```bash
+sha256sum naomi-0.2.0.apk           # compare against SHA256SUMS.txt
+aapt2 dump permissions naomi-0.2.0.apk
+```
+
+No network permission is listed. Sideloaded apps do not update themselves, so
+watch the repository for releases or point [Obtainium](https://github.com/ImranR98/Obtainium)
+at it; updates install over the top and keep your memories.
+
+---
+
 ## Build and run
 
 Requires JDK 17 and the Android SDK (compileSdk 36).
@@ -313,21 +335,20 @@ in the launcher process at inflate time.
 
 ## Android release
 
-Releases are built, signed and shipped by GitHub Actions. Full instructions —
-including the manual steps nobody can automate — are in
+Releases are built and signed by GitHub Actions. Full instructions are in
 **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ```
-push to main  →  lint · tests · privacy gates  →  signed AAB  →  Play Internal Testing
-manual run    →  promote that exact artifact   →  Play Production (staged)
+push to main  →  lint · tests · privacy gates · both flavours    →  releases nothing
+push tag v*   →  the same gates  →  signed APK + checksums       →  draft GitHub Release
 ```
 
-- **Internal Testing is automatic.** It is a closed track visible only to listed
-  testers, so reaching it on every green push is safe.
-- **Production is never automatic.** It needs a manual workflow run, a typed
-  confirmation, and — if you configure the `production` environment — an
-  approval. It *promotes* the artifact testers already have rather than
-  rebuilding, so what ships is what was tested.
+- **Pushing to main publishes nothing.** It builds and tests. Cutting a release
+  takes a tag, which is a separate and visible act.
+- **The release is a draft.** Nothing is downloadable until a human opens it,
+  reads it and presses Publish.
+- **`versionCode` comes from the tag**, not a build counter, so re-running the
+  workflow on a tag cannot produce a second binary claiming to be that release.
 - **Only the `offline` flavour is published.** The `connected` build declares
   `INTERNET` and must be built from source deliberately.
 
@@ -336,9 +357,13 @@ GitHub secrets in CI. The keystore itself lives outside the repository, and no
 credential is ever committed — see
 [Files that must never be committed](DEPLOYMENT.md#files-that-must-never-be-committed).
 
+With no store in the path there is no Play App Signing, which means the key that
+signs these releases is the app signing key rather than a recoverable upload key.
+DEPLOYMENT.md is blunt about what that costs.
+
 ```bash
 ./gradlew :app:verifyReleaseSigning     # is signing configured?
-./gradlew :app:bundleOfflineRelease     # the AAB Play receives
+./gradlew :app:assembleOfflineRelease   # the APK that gets published
 ```
 
 ---

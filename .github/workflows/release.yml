@@ -1,21 +1,77 @@
 name: Release
 
+# Naomi is distributed as a signed APK on GitHub Releases, not through an app
+# store. That means this workflow is the *entire* publishing pipeline: what it
+# attaches to a release is what people install.
+#
+# It runs only on a version tag. Pushing to main builds and tests (android.yml)
+# but releases nothing — cutting a release stays a deliberate act.
 on:
   push:
     tags:
       - 'v*'
+  # Also runnable by hand from Actions. Pick a tag in the "Use workflow from"
+  # dropdown — the steps below read the tag name, so a branch will be rejected.
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   release:
-    name: Build & publish release
+    name: Build, sign & publish
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # The tag is the single source of truth for the version. versionCode is
+      # derived from it rather than from a run counter so that re-running this
+      # workflow on the same tag produces the same number: with no store to
+      # reject duplicates, a drifting versionCode would silently ship two
+      # different builds claiming to be the same release.
+      - name: Derive version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::'$TAG' is not a vMAJOR.MINOR.PATCH tag. Run this from a version tag."
+            exit 1
+          fi
+          MAJOR="${BASH_REMATCH[1]}"; MINOR="${BASH_REMATCH[2]}"; PATCH="${BASH_REMATCH[3]}"
+          if [ "$MINOR" -gt 99 ] || [ "$PATCH" -gt 99 ]; then
+            echo "::error::minor and patch must each stay under 100 for versionCode to keep increasing."
+            exit 1
+          fi
+          NAME="${TAG#v}"
+          CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+
+          # Android refuses to install an update whose versionCode is not higher
+          # than the installed one, and there is no store to catch a mismatch
+          # between the tag and what the APK actually reports. So the tag and
+          # build.gradle.kts must agree, and CI is where that is enforced.
+          # sed rather than grep -oP: -P is a GNU extension and refuses to run
+          # under some locales, which would fail the release for a reason that
+          # has nothing to do with the release.
+          GRADLE_NAME=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+            app/build.gradle.kts | head -1)
+          if [ -z "$GRADLE_NAME" ]; then
+            echo "::error::Could not read versionName from app/build.gradle.kts."
+            exit 1
+          fi
+          if [ "$GRADLE_NAME" != "$NAME" ]; then
+            echo "::error::Tag says $NAME but app/build.gradle.kts says $GRADLE_NAME. Bump versionName and re-tag."
+            exit 1
+          fi
+
+          echo "name=$NAME"   >> "$GITHUB_OUTPUT"
+          echo "code=$CODE"   >> "$GITHUB_OUTPUT"
+          echo "Releasing $NAME (versionCode $CODE)"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,6 +83,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # The same gates CI runs. A release that skipped them would be a release
+      # nobody checked — and the two privacy gates are the ones that must never
+      # be optional, because the claim they protect is the product.
       - name: Assert offline build has no network permission
         run: ./gradlew checkOfflineReleaseHasNoNetworkPermission --no-daemon
 
@@ -39,15 +98,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew testOfflineReleaseUnitTest --no-daemon
 
-      # Only the offline flavour is published. The connected build exists for
-      # people who deliberately want the research layer and must be built from
-      # source — shipping it here beside the offline APK would make the download
-      # page the place where someone accidentally installs the one that can
-      # reach the network.
-      #
-      # This previously built and published the *debug* APK. A debuggable build
-      # lets anyone with adb read the on-device memory database through `run-as`,
-      # which is the opposite of what this app promises. Release only.
+      # The keystore arrives base64-encoded because a GitHub secret is a string.
+      # It is written outside the workspace so it cannot be picked up by a later
+      # step that globs the repo, and it never reaches the release assets.
       - name: Restore upload keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -58,33 +111,146 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/signing"
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/upload.jks"
-          test -s "$RUNNER_TEMP/signing/upload.jks" || { echo "::error::Decoded keystore is empty."; exit 1; }
+          # Prove the file decoded to a real keystore without revealing anything.
+          if [ ! -s "$RUNNER_TEMP/signing/upload.jks" ]; then
+            echo "::error::Decoded keystore is empty — is the secret valid base64?"
+            exit 1
+          fi
+          echo "Keystore restored ($(stat -c%s "$RUNNER_TEMP/signing/upload.jks") bytes)."
 
+      # Only the offline flavour is published. The connected build exists for
+      # people who deliberately want the research layer and must be built from
+      # source — shipping it here beside the offline APK would make the download
+      # page the place where someone accidentally installs the one that can
+      # reach the network.
+      #
+      # Release, never debug. A debuggable build lets anyone with adb read the
+      # on-device memory database through `run-as`, which is the opposite of
+      # what this app promises.
       - name: Build signed release APK
         env:
-          VERSION_CODE: ${{ 1000 + github.run_number }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
           KEYSTORE_FILE: ${{ runner.temp }}/signing/upload.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew :app:verifyReleaseSigning :app:assembleOfflineRelease --no-daemon
 
-      # The APK here is for sideloading and for people who do not use Play; the
-      # Play track is fed by android-release.yml, which uploads the AAB. Still a
-      # draft, so a human decides when it becomes visible.
+      # Nothing downstream checks this for us. Without a store in the path, an
+      # unsigned or wrongly-signed APK would simply be published and fail to
+      # install — or worse, install and then be unupdatable.
+      - name: Verify the APK is signed
+        id: verify
+        run: |
+          APK=app/build/outputs/apk/offline/release/app-offline-release.apk
+          test -f "$APK" || { echo "::error::No APK at $APK"; exit 1; }
+
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs -v "$APK"
+          else
+            # Fallback: a signed APK carries a signature block in META-INF.
+            echo "::warning::apksigner not found; falling back to a structural check."
+            unzip -l "$APK" | grep -qiE "META-INF/.*\.(RSA|EC|DSA)" \
+              || { echo "::error::$APK has no signature block."; exit 1; }
+          fi
+
+      # Renamed so the download is self-describing. "app-offline-release.apk"
+      # tells someone who found it in their Downloads folder nothing at all.
+      - name: Stage release assets
+        id: assets
+        env:
+          VERSION: ${{ steps.version.outputs.name }}
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/offline/release/app-offline-release.apk \
+             "dist/naomi-${VERSION}.apk"
+
+          # The mapping file turns a user-reported stack trace back into readable
+          # line numbers. It is published alongside the APK rather than kept as a
+          # build artifact because artifacts expire and the APK does not: a crash
+          # report six months from now still needs this exact file.
+          #
+          # Gzipped because it is ~38 MB raw — seventeen times the size of the
+          # app — and a download page where the biggest file is not the app is a
+          # download page people get wrong. It compresses to about 2.7 MB.
+          gzip -9 -c app/build/outputs/mapping/offlineRelease/mapping.txt \
+             > "dist/naomi-${VERSION}-mapping.txt.gz"
+
+          # Anyone sideloading is trusting a file from the internet. A checksum
+          # published by the build that produced it lets them check they got that
+          # exact file. Named explicitly rather than globbed, so the sums file
+          # can never end up listing itself on a re-run.
+          ( cd dist && sha256sum \
+              "naomi-${VERSION}.apk" \
+              "naomi-${VERSION}-mapping.txt.gz" > SHA256SUMS.txt )
+          cat dist/SHA256SUMS.txt
+
+          echo "sha=$(sha256sum "dist/naomi-${VERSION}.apk" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      # Draft, so a human decides when it becomes visible and can write the
+      # human half of the release notes first.
       - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/offline/release/app-offline-release.apk
+          files: |
+            dist/naomi-${{ steps.version.outputs.name }}.apk
+            dist/naomi-${{ steps.version.outputs.name }}-mapping.txt.gz
+            dist/SHA256SUMS.txt
           generate_release_notes: true
           draft: true
           prerelease: false
           body: |
-            Signed with Naomi's upload key and installable directly.
+            ## Install
+
+            Download `naomi-${{ steps.version.outputs.name }}.apk` and open it on
+            your phone. Android will ask you to allow installs from this source;
+            that prompt is what sideloading looks like and it is expected.
+
+            Android 8.0 (API 26) or newer.
+
+            ## Verify what you downloaded
+
+            ```
+            sha256sum naomi-${{ steps.version.outputs.name }}.apk
+            ```
+
+            ```
+            ${{ steps.assets.outputs.sha }}
+            ```
 
             This is the **offline** build. It declares no `INTERNET` permission,
-            which you can check for yourself:
+            so it cannot send anything anywhere — and you do not have to take
+            that on faith:
 
             ```
-            aapt2 dump permissions app-offline-release.apk
+            aapt2 dump permissions naomi-${{ steps.version.outputs.name }}.apk
             ```
+
+            The output lists no network permission of any kind. CI asserts the
+            same thing on every build, and the release is blocked if it fails.
+
+            ## Updates
+
+            Sideloaded apps do not update themselves. Watch this repository for
+            releases, or point a tool like Obtainium at it. Updates install over
+            the top and keep your memories — they are signed with the same key.
+
+            `naomi-${{ steps.version.outputs.name }}-mapping.txt.gz` is not
+            something you need. It is only for turning a crash report from this
+            exact build back into readable line numbers.
+
+      - name: Remove keystore
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Draft release ${{ steps.version.outputs.name }}"
+            echo ""
+            echo "- versionCode: \`${{ steps.version.outputs.code }}\`"
+            echo "- SHA-256: \`${{ steps.assets.outputs.sha }}\`"
+            echo ""
+            echo "It is a **draft**. Review it and press Publish when ready."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Signed release builds.** An upload key configured from a gitignored
+  `keystore.properties` locally and from GitHub secrets in CI. Release builds
+  never fall back to the debug key: without credentials they stay unsigned and
+  `verifyReleaseSigning` fails with an explanation.
+- **APK Signature Scheme v3.** Enables key rotation, which without a store
+  holding a recoverable copy of the signing key is the only way a compromised
+  key can be replaced on Android 9+ without every user uninstalling.
+- **`SHA256SUMS.txt` on every release**, so the privacy claim can be checked
+  against the exact binary that was downloaded rather than against the README.
+
+### Changed
+- **Distribution is GitHub Releases, not Google Play.** A version tag builds,
+  signs and verifies the APK and opens a *draft* release; pushing to `main`
+  publishes nothing. `versionCode` is derived from the tag
+  (`major*10000 + minor*100 + patch`) rather than a build counter, so re-running
+  the workflow on a tag cannot produce a second binary claiming to be that
+  release. DEPLOYMENT.md is explicit about what shipping outside a store
+  costs — chiefly that there is no Play App Signing, so a lost key means the app
+  can never be updated again.
+- The R8 mapping file is attached to each release, gzipped. Build artifacts
+  expire after 90 days; the APK they describe does not.
+
+### Removed
+- The Play Internal Testing and Play production-promotion workflows, and the
+  `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` secret they needed.
+
 ---
 
 ## [0.2.0] - 2026-08-29

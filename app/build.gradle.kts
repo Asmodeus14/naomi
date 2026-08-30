@@ -45,20 +45,25 @@ val hasUploadKey = uploadStoreFile != null &&
 /**
  * versionName is edited by hand; versionCode is supplied by CI.
  *
- * Play rejects an upload whose versionCode already exists, and it can never be
- * reused even after a release is deleted — so the one property that matters is
- * that the number only ever goes up. A human remembering to increment it is the
- * part that fails, usually on the second upload of the day.
+ * Android refuses to install an update whose versionCode is not higher than the
+ * installed one, so the number must only ever go up. Naomi ships as a sideloaded
+ * APK with no store in the path, which means nothing upstream will catch a
+ * mistake here — a wrong number is discovered by a user whose update will not
+ * install.
  *
- * CI passes `VERSION_CODE` as a base plus the workflow run number, which is
- * monotonic per repository and needs no state. [VERSION_CODE_FALLBACK] is only
- * for local builds, where the number is never seen by Play; it stays above the
- * codes already consumed by 0.1.0 and 0.2.0 so a locally built artifact can
- * still be installed over a store one.
+ * The release workflow therefore derives it from the git tag, not from a build
+ * counter: `major * 10000 + minor * 100 + patch`, so `v0.2.0` is 200. Re-running
+ * the workflow on the same tag produces the same number, and the same tag can
+ * never describe two different builds.
+ *
+ * [VERSION_CODE_FALLBACK] applies only to local builds. It is deliberately lower
+ * than any released code so that an APK built on someone's laptop cannot install
+ * itself over a real release and pass for a newer one.
  *
  * versionName is deliberately *not* automated. It is the number a human reads,
  * and it should change because a release means something, not because a build
- * happened. See DEPLOYMENT.md.
+ * happened. The release workflow asserts that it matches the tag. See
+ * DEPLOYMENT.md.
  */
 val VERSION_CODE_FALLBACK = 3
 
@@ -112,9 +117,19 @@ android {
                 storePassword = uploadStorePassword
                 keyAlias = uploadKeyAlias
                 keyPassword = uploadKeyPassword
-                // Both signature schemes: v1 for API 26-27, v2+ for the rest.
+                // v2 covers every device Naomi runs on: v1 (JAR signing) is only
+                // needed below API 24 and minSdk is 26, so AGP skips it anyway.
+                //
+                // v3 is the one that earns its place. Naomi ships outside a
+                // store, so there is no Play App Signing holding a recoverable
+                // copy of this key — and v3's proof-of-rotation lineage is the
+                // only mechanism that lets a compromised key be replaced on
+                // Android 9+ without every user uninstalling and losing their
+                // memories. It costs nothing to enable now and cannot be added
+                // retroactively to APKs already in the wild.
                 enableV1Signing = true
                 enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

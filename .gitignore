@@ -6,6 +6,8 @@ app/build/
 .externalNativeBuild/
 .kotlin/
 captures/
+# The Eclipse/VS Code Java tooling drops compiled output here, outside build/.
+bin/
 
 # Build artifacts. A 19MB APK was previously committed at the repository root;
 # releases are published by CI, never carried in the tree.
@@ -26,9 +28,9 @@ keystore.properties
 secrets.xml
 google-services.json
 
-# Google Play publishing credentials. The service-account JSON grants upload
-# rights to the Play listing; CI receives it as a secret, writes it to a
-# temporary file and deletes that file at the end of the run.
+# Store-publishing credentials. Naomi ships through GitHub Releases and uses
+# none of these today, but a service-account JSON grants upload rights to a
+# listing, and the cost of keeping the patterns is nothing.
 service-account.json
 play-service-account*.json
 *-service-account.json

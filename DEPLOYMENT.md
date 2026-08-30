@@ -1,21 +1,20 @@
-# Deploying Naomi to Google Play
+# Releasing Naomi
 
-This is the whole path from a commit to an app on someone's phone, including the
-parts nobody can automate for you.
+Naomi is distributed as a signed APK on **GitHub Releases**. There is no app
+store in the path, which makes this document the whole publishing pipeline: what
+CI attaches to a release is what people install.
 
 **Contents**
 
 - [The shape of it](#the-shape-of-it)
+- [What distributing outside a store actually means](#what-distributing-outside-a-store-actually-means)
 - [Files that must never be committed](#files-that-must-never-be-committed)
-- [1. The upload keystore](#1-the-upload-keystore)
+- [1. The signing key](#1-the-signing-key)
 - [2. Local signing](#2-local-signing)
 - [3. GitHub secrets](#3-github-secrets)
-- [4. Google Play service account](#4-google-play-service-account)
-- [5. The first upload must be manual](#5-the-first-upload-must-be-manual)
-- [6. Releasing to Internal Testing](#6-releasing-to-internal-testing)
-- [7. Releasing to Production](#7-releasing-to-production)
-- [8. Versioning](#8-versioning)
-- [9. When something goes wrong](#9-when-something-goes-wrong)
+- [4. Cutting a release](#4-cutting-a-release)
+- [5. Versioning](#5-versioning)
+- [6. When something goes wrong](#6-when-something-goes-wrong)
 - [Commands](#commands)
 
 ---
@@ -24,46 +23,82 @@ parts nobody can automate for you.
 
 ```
 push to main
-    └─ android-release.yml
-         lint · tests · privacy gates
-         → signed AAB (offline flavour)
-         → Play Internal Testing          ← automatic, closed track
+    └─ android.yml
+         lint · unit tests · both privacy gates
+         builds both flavours, debug and release        ← releases nothing
 
-manual: Actions → Android Production Release
-    └─ android-production.yml
-         type "PRODUCTION" + versionCode
-         → promotes the tested artifact   ← never automatic
-         → staged rollout
+push tag v*
+    └─ release.yml
+         the same gates, again
+         → signed APK (offline flavour)
+         → SHA256SUMS.txt + R8 mapping
+         → DRAFT GitHub Release                         ← a human presses Publish
 ```
 
 Two things about this are deliberate.
 
-**Internal Testing is not publishing.** It is a closed track visible only to
-testers you list. Reaching it automatically on every green push is safe; reaching
-production automatically is not, because a production release cannot be pulled
-back off devices that already installed it.
+**Pushing to main releases nothing.** It builds and tests. Cutting a release
+takes a tag, which is a separate and visible act.
 
-**Production promotes rather than rebuilds.** The artifact testers have been
-using is the one that goes live. Rebuilding from the same source would produce a
-different binary from the one that was actually tested.
+**The release is created as a draft.** Nothing is downloadable until someone
+opens it, reads it, and publishes. There is no automatic path from a commit to a
+file on a stranger's phone.
 
 Only the **`offline`** flavour is ever published. The `connected` flavour declares
 `INTERNET` and exists to be built from source by someone who deliberately wants
-the web-reading layer.
+the web-reading layer. Publishing both would make the download page the place
+where somebody installs the networked one by accident.
+
+---
+
+## What distributing outside a store actually means
+
+Worth being straight about, because it is not all upside.
+
+**No $25 developer account, no review, no data-safety form, no store policy.**
+Releases land when you decide they land.
+
+**You are the only thing standing behind the signature.** Play offers *Play App
+Signing*, where Google holds the app signing key and yours is only an upload key
+— which makes a lost key recoverable. Outside a store there is no such
+safety net. The key in `~/.android-keystores/naomi-upload.jks` **is** the app
+signing key.
+
+> **If that file and its password are lost, the app can never be updated again.**
+> Not by you, not by anyone. Every existing user would have to uninstall — losing
+> their memories — and install a differently-signed build. There is no reset
+> procedure and no appeal, because there is no third party. Back it up
+> ([§1](#1-the-signing-key)) before you ship anything.
+
+**Users have to allow installs from an unknown source,** and Play Protect may
+warn on first launch. This is normal for sideloading, but it is friction, and it
+is the one part of the experience a store would have smoothed over.
+
+**Nothing updates itself.** A sideloaded APK has no update channel. Users must
+watch the repository, or point something like [Obtainium](https://github.com/ImranR98/Obtainium)
+at it. Say so in the release notes rather than letting people sit on an old build
+assuming it is current.
+
+**No crash reporting.** Which is consistent with an app that has no `INTERNET`
+permission — but it means a crash is only ever seen if a user reports it. That is
+why the R8 `mapping.txt` is attached to every release: it is the only way to turn
+a pasted stack trace back into readable line numbers, and it must outlive the
+90-day expiry of a build artifact.
+
+If Naomi ever does go to Play, the keystore below becomes the *upload* key and
+this section gets much shorter.
 
 ---
 
 ## Files that must never be committed
 
-All of these are in `.gitignore`. The check in [§11](#9-when-something-goes-wrong)
-verifies it.
+All of these are in `.gitignore`.
 
 | Pattern | What it is |
 |---|---|
-| `*.jks`, `*.keystore`, `*.p12` | The upload key. Losing control of it means someone else can ship updates as you. |
+| `*.jks`, `*.keystore`, `*.p12` | The signing key. Losing control of it means someone else can ship updates that install over yours. |
 | `keystore.properties` | Local signing passwords. |
 | `*.pem`, `*.key` | Private keys of any kind. |
-| `service-account.json`, `*-service-account.json`, `google-play-*.json` | Play API credentials. Grants upload rights to your listing. |
 | `.env`, `.env.*` | Anything else with credentials in it. |
 | `local.properties` | Machine-local SDK paths. |
 
@@ -71,11 +106,7 @@ verifies it.
 
 ---
 
-## 1. The upload keystore
-
-An upload key is not the same as the app signing key. Play re-signs your app with
-a key Google holds; yours only proves uploads come from you. That distinction is
-what makes losing it recoverable — see [§9](#if-you-lose-the-upload-key).
+## 1. The signing key
 
 **A keystore already exists for this project** at:
 
@@ -98,13 +129,17 @@ keytool -genkeypair -v \
   -storetype PKCS12
 ```
 
-Play requires validity through at least 2033; 10950 days (~30 years) clears that.
+10950 days is ~30 years. An app cannot be updated past its signing certificate's
+expiry, so this is not a place to be modest.
 
 ### Protecting it
 
 **Back it up before you do anything else.** Put the `.jks` and its password in a
 password manager or an encrypted archive somewhere that is not this machine and
-not this repository. If your disk dies today, the keystore dies with it.
+not this repository. Read the warning in
+[What distributing outside a store actually means](#what-distributing-outside-a-store-actually-means):
+without a store holding a copy of the signing key, a dead disk is the end of the
+app's update path.
 
 - Never email it, never put it in a chat, never commit it.
 - Never reuse it for another app.
@@ -137,7 +172,7 @@ Confirm it works:
 
 ```bash
 ./gradlew :app:verifyReleaseSigning
-./gradlew :app:bundleOfflineRelease
+./gradlew :app:assembleOfflineRelease
 ```
 
 ---
@@ -147,7 +182,7 @@ Confirm it works:
 **MANUAL STEP.** I cannot create these — they require your GitHub account.
 
 Go to **Settings → Secrets and variables → Actions → New repository secret** and
-add five:
+add four:
 
 | Secret | Value |
 |---|---|
@@ -155,7 +190,9 @@ add five:
 | `KEYSTORE_PASSWORD` | `storePassword` from `keystore.properties` |
 | `KEY_ALIAS` | `upload` |
 | `KEY_PASSWORD` | `keyPassword` from `keystore.properties` |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | The whole service-account JSON, pasted verbatim ([§4](#4-google-play-service-account)) |
+
+For a PKCS12 keystore created as in [§1](#1-the-signing-key), the store and key
+passwords are the same value.
 
 To encode the keystore:
 
@@ -170,106 +207,48 @@ base64 -w0 ~/.android-keystores/naomi-upload.jks | pbcopy   # or > keystore.b64
 Paste the whole string as `KEYSTORE_BASE64`. If you wrote it to a file, **delete
 that file afterwards** — it is the keystore in another form.
 
-Secrets are masked in logs. The workflows additionally never echo them: the
-keystore is decoded to a file outside the workspace, and the service-account JSON
-is written and then deleted in an `always()` step so it goes even if the upload
-fails.
+Secrets are masked in logs. The workflow additionally never echoes them: the
+keystore is decoded to a file outside the workspace and removed in an `always()`
+step, so it goes even if the build fails.
+
+Until these four exist, `release.yml` fails at "Restore upload keystore" with a
+named error. Nothing is published and nothing is half-published.
 
 ---
 
-## 4. Google Play service account
+## 4. Cutting a release
 
-**MANUAL STEP.** This needs your Google Cloud and Play Console accounts.
+```bash
+# 1. Bump versionName in app/build.gradle.kts
+# 2. Close the [Unreleased] section of CHANGELOG.md — same commit
+# 3. Push that commit to main and let CI go green
+git tag -a v0.3.0 -m "Release 0.3.0"
+git push origin v0.3.0
+```
 
-1. **Play Console → Setup → API access.** Link a Google Cloud project if you have
-   not already.
-2. In **Google Cloud Console → IAM & Admin → Service Accounts**, create one, e.g.
-   `naomi-play-publisher`. It needs no Cloud IAM roles.
-3. On that service account, **Keys → Add key → Create new key → JSON**. The file
-   downloads once and cannot be re-downloaded.
-4. Back in **Play Console → Users and permissions → Invite new user**, invite the
-   service account's email address and grant, for Naomi only:
-   - **Release to testing tracks**
-   - **Release to production** *(only if you want the production workflow to work)*
-   - **View app information**
-5. Paste the JSON's entire contents into the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-   GitHub secret, then **delete the downloaded file**.
+The tag starts `release.yml`, which re-runs lint, the unit tests and both privacy
+gates, builds and signs the APK, verifies the signature with `apksigner`,
+generates `SHA256SUMS.txt`, and opens a **draft** release.
 
-Permissions can take a few minutes to propagate. A `401`/`403` on the first run
-usually means "wait and retry", not "misconfigured".
+Then, by hand:
 
----
+4. **Actions → Release** — check it went green.
+5. **Releases → the draft** — read the generated notes, write the human half, and
+   check the APK is attached and the size looks right (~2 MB).
+6. **Publish release.**
 
-## 5. The first upload must be manual
+The tag and `versionName` must agree. If they do not, the workflow stops before
+building and tells you which to change — a mismatch would ship an APK that
+reports a different version from the release it is attached to.
 
-**MANUAL STEP, and it cannot be skipped.**
-
-The Play Developer API cannot create an app listing, and it cannot perform the
-*first* upload of a package. Until `com.naomi.app` exists in Play Console with one
-release uploaded by hand, every API upload fails.
-
-Once, before CI can work:
-
-1. **Play Console → Create app.** Package name must be exactly `com.naomi.app`.
-2. Complete the tasks Play requires before any release: app access, ads
-   declaration, content rating, target audience, data safety, privacy policy URL.
-   *(Naomi's data-safety answers are unusually easy — no data leaves the device,
-   and the published build has no `INTERNET` permission at all.)*
-3. Build an AAB locally and upload it by hand to **Internal Testing**:
-   ```bash
-   ./gradlew :app:bundleOfflineRelease
-   # app/build/outputs/bundle/offlineRelease/app-offline-release.aab
-   ```
-4. Add at least one tester email to the Internal Testing track.
-5. **Opt in to Play App Signing** when prompted. It is the default and it is what
-   makes a lost upload key recoverable.
-
-After that one upload, every subsequent release can come from CI.
+To release without pushing a tag — a re-run after a CI hiccup, say — use
+**Actions → Release → Run workflow** and select the existing tag in the
+"Use workflow from" dropdown. A branch is rejected; the version has to come from
+a tag.
 
 ---
 
-## 6. Releasing to Internal Testing
-
-Automatic. Push to `main`; `android-release.yml` runs lint, unit tests and both
-privacy gates, builds a signed AAB, uploads it as a run artifact, and pushes it to
-Internal Testing.
-
-To release without pushing — or to target `alpha`/`beta` — use
-**Actions → Android Release (Internal Testing) → Run workflow** and pick a track.
-
-If `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` is not set, the workflow still builds and
-attaches the signed AAB, and just skips the upload. That is intentional: it lets
-you set up signing and Play access in either order.
-
----
-
-## 7. Releasing to Production
-
-Manual, and guarded twice.
-
-**Actions → Android Production Release → Run workflow**, then:
-
-- `confirm` — type `PRODUCTION` exactly
-- `version_code` — the versionCode already on Internal Testing that you want to
-  promote (the release workflow's summary prints it)
-- `rollout_percentage` — `0.1` for 10%, `1.0` for everyone
-
-**Recommended second gate.** Create a GitHub Environment named `production` with
-required reviewers, and the job will pause for approval before running:
-
-> **MANUAL STEP:** Settings → Environments → New environment → `production` →
-> Required reviewers → add yourself.
-
-Without that environment the job still runs, so the typed confirmation is the
-minimum protection. With it, nothing reaches production without a second person —
-or at least a second decision.
-
-A staged rollout can be increased or halted in **Play Console → Production →
-Releases**. It cannot be undone: users who already updated keep the new version.
-
----
-
-## 8. Versioning
+## 5. Versioning
 
 Two numbers, two different jobs.
 
@@ -277,79 +256,82 @@ Two numbers, two different jobs.
 change because a release means something, not because a build happened. Bump it in
 the same commit that closes the `[Unreleased]` section of `CHANGELOG.md`.
 
-**`versionCode`** — supplied by CI as `1000 + github.run_number`. Monotonic,
-stateless, and it can never collide with an upload that already exists. The `1000`
-offset clears the codes already used by 0.1.0 and 0.2.0.
+**`versionCode`** — derived from the tag: `major * 10000 + minor * 100 + patch`.
 
-You do not bump `versionCode` by hand and you should not try. Play rejects a
-duplicate, and a code can never be reused even after its release is deleted — so
-the only property that matters is that it always increases, and a human
-remembering to increment it is exactly the part that fails.
+| Tag | versionCode |
+|---|---|
+| `v0.2.0` | 200 |
+| `v0.2.1` | 201 |
+| `v0.3.0` | 300 |
+| `v1.0.0` | 10000 |
 
-Local builds use `VERSION_CODE_FALLBACK` (3), which Play never sees.
+Deterministic on purpose. A build counter would give the same tag a different
+number on a re-run, and with no store to reject the duplicate, two different
+binaries could end up claiming to be the same release. The scheme assumes minor
+and patch stay under 100; the workflow checks and fails if they do not.
 
-To cut a release:
-
-```bash
-# 1. Bump versionName in app/build.gradle.kts, close the CHANGELOG section
-# 2. Commit and push to main  →  Internal Testing, automatically
-# 3. Test it
-# 4. Actions → Android Production Release → promote that versionCode
-```
-
-To override the code for a one-off local build:
+Local builds use `VERSION_CODE_FALLBACK` (3), deliberately below any released
+code, so a laptop build cannot install over a real release and pass for newer.
+To override it for a one-off:
 
 ```bash
-VERSION_CODE=1234 ./gradlew :app:bundleOfflineRelease
+VERSION_CODE=1234 ./gradlew :app:assembleOfflineRelease
 ```
 
 ---
 
-## 9. When something goes wrong
+## 6. When something goes wrong
 
-**"Version code N has already been used."**
-The run number went backwards, or you uploaded that code by hand. Re-run the
-workflow — the next run number produces a new code. Never lower the offset.
-
-**`401` / `403` from the Play API.**
-Either the service account has not been invited in Play Console → Users and
-permissions, or its permissions have not propagated yet. Wait a few minutes.
-
-**"Package not found" on the first CI upload.**
-[§5](#5-the-first-upload-must-be-manual) has not been done. The API cannot create
-a listing or perform a package's first upload.
+**"Tag says X but app/build.gradle.kts says Y."**
+Bump `versionName`, commit, delete the tag (`git tag -d v0.3.0 && git push origin
+:v0.3.0`), and re-tag the new commit.
 
 **Signing fails in CI.**
 `verifyReleaseSigning` runs before the build and names the missing variable. The
 usual cause is `KEYSTORE_BASE64` pasted with line breaks — re-encode with
 `base64 -w0`.
 
-**A bad build reached Internal Testing.**
-Push a fix. The next build supersedes it. Testers are people who agreed to test;
-this is what the track is for.
+**"App not installed" on a user's phone.**
+Almost always one of three things: a different signing key from the version they
+have (they must uninstall first, which loses their memories), a versionCode that
+is not higher than the installed one, or Android below 8.0.
 
-**A bad build reached Production.**
-Halt the staged rollout in Play Console immediately, then ship a fix with a higher
-`versionCode`. You cannot remove a version from devices that already have it.
+**Play Protect warns on install.**
+Expected for a signature it has not seen before. It becomes less frequent as more
+people install the same signed build. There is nothing to fix.
 
-### If you lose the upload key
+**A bad build got published.**
+Delete the release — or mark it a pre-release — so nobody else downloads it, then
+ship a fix under a higher version. You cannot remove it from devices that already
+installed it. This is why the release is a draft first: the review step is the
+last cheap moment.
 
-Recoverable, if you enrolled in **Play App Signing** ([§5](#5-the-first-upload-must-be-manual)):
+### If the keystore is lost
 
-1. Generate a new upload keystore ([§1](#1-the-upload-keystore)).
-2. Play Console → Setup → App integrity → **Request upload key reset**.
-3. Google resets it, usually within a couple of days.
-4. Update `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
-
-Without Play App Signing, a lost key means the app can never be updated again and
-must be republished under a new package name, losing every install and review.
-This is the single best argument for enrolling.
+There is no recovery. See
+[What distributing outside a store actually means](#what-distributing-outside-a-store-actually-means).
+Existing users cannot be updated; the app has to be republished under a new key
+and, in practice, a new package name, and everyone reinstalls from scratch.
+Back it up now rather than reading this twice.
 
 ### If the keystore is exposed
 
-Treat it as compromised even if you are not sure. Request an upload key reset as
-above, rotate the GitHub secrets, and — if it was ever committed — remember that
-rewriting history does not un-publish anything already fetched.
+Treat it as compromised even if you are not sure. Anyone holding it can build an
+APK that installs over yours as a legitimate update.
+
+Releases are signed with **APK Signature Scheme v3**, which supports key
+rotation: you can generate a new key and sign with a *proof-of-rotation lineage*
+linking it to the old one, and Android 9+ accepts the result as a legitimate
+update. `apksigner rotate` produces the lineage; `apksigner sign --lineage` uses
+it. Devices on Android 8.x do not understand v3 and will refuse the update, so
+those users still have to uninstall and reinstall.
+
+Rotation only works if the old key is still available to sign the lineage. It is
+a remedy for *exposure*, not for *loss* — which is the asymmetry worth
+remembering: a leaked key is survivable, a lost one is not.
+
+If it was ever committed, remember that rewriting history does not un-publish
+anything already fetched.
 
 ---
 
@@ -364,26 +346,26 @@ rewriting history does not un-publish anything already fetched.
 
 # Release, locally
 ./gradlew :app:verifyReleaseSigning     # confirm signing is configured
-./gradlew :app:assembleOfflineRelease   # signed APK  (sideloading)
-./gradlew :app:bundleOfflineRelease     # signed AAB  (Play)
+./gradlew :app:assembleOfflineRelease   # the signed APK that gets published
 
 # Verify what you built
-aapt2 dump badging   app/build/outputs/apk/offline/release/app-offline-release.apk | grep version
+aapt2 dump badging     app/build/outputs/apk/offline/release/app-offline-release.apk | grep version
 aapt2 dump permissions app/build/outputs/apk/offline/release/app-offline-release.apk
-apksigner verify -v  app/build/outputs/apk/offline/release/app-offline-release.apk
+apksigner verify -v    app/build/outputs/apk/offline/release/app-offline-release.apk
+sha256sum              app/build/outputs/apk/offline/release/app-offline-release.apk
 
 # The connected flavour — not published, build it yourself if you want it
 ./gradlew :app:assembleConnectedRelease
 ```
 
 **Artifact paths.** Because the project has product flavours, these are *not* the
-conventional `…/release/app-release.aab`:
+conventional `…/release/app-release.apk`:
 
 | Artifact | Path |
 |---|---|
-| AAB (Play) | `app/build/outputs/bundle/offlineRelease/app-offline-release.aab` |
-| APK (sideload) | `app/build/outputs/apk/offline/release/app-offline-release.apk` |
+| APK | `app/build/outputs/apk/offline/release/app-offline-release.apk` |
 | R8 mapping | `app/build/outputs/mapping/offlineRelease/mapping.txt` |
 
-The mapping file is what turns a Play crash report back into a readable stack
-trace. CI uploads it with every release; keep it for any build you ship.
+`./gradlew :app:bundleOfflineRelease` still produces an AAB if you ever need one,
+but nothing publishes it — an AAB is a store format and cannot be installed
+directly.
